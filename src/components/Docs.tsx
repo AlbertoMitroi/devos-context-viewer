@@ -36,8 +36,8 @@ export function Docs() {
   const model = st.model;
   // Symbols by their full name, so type names in context cards link to the map.
   const bySignature = useMemo(() => {
-    const m = new Map<string, string>();
-    if (model) for (const n of model.nodes.values()) if (n.tier === 'entity' && n.origin !== 'metadata' && !m.has(n.fullName)) m.set(n.fullName, n.id);
+    const m = new Map<string, string[]>();
+    if (model) for (const n of model.nodes.values()) if (n.tier === 'entity' && n.origin !== 'metadata') m.set(n.fullName, [...(m.get(n.fullName) ?? []), n.id]);
     return m;
   }, [model]);
   const projectPath = useMemo(() => {
@@ -75,15 +75,19 @@ export function Docs() {
       wrap.appendChild(t);
       t.className = 'w-full text-sm [&_td]:border-t [&_td]:border-border-subtle [&_td]:px-3 [&_td]:py-2 [&_th]:bg-surface-1 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:text-xs [&_th]:font-medium [&_th]:text-subtle-foreground';
     }
+    // Prefer the symbol from this card's project; elsewhere link only names that are unambiguous.
+    const cardProject = /- Project: `([^`]+)`/.exec(el.textContent ?? '')?.[1];
+    const cardRoot = cardProject ? model?.projectByPath.get(cardProject)?.id : undefined;
     for (const c of [...el.querySelectorAll('code')]) {
-      const id = bySignature.get(c.textContent ?? '');
+      const ids = bySignature.get(c.textContent ?? '') ?? [];
+      const id = (cardRoot && ids.find((x) => model?.nodes.get(x)?.root === cardRoot)) || (ids.length === 1 ? ids[0] : undefined);
       if (id && !c.closest('pre')) {
         c.dataset.entity = id;
         c.classList.add('cursor-pointer', 'underline', 'decoration-dotted', 'underline-offset-4', 'hover:text-foreground');
         c.title = 'Show on map';
       }
     }
-  }, [html, bySignature, path]);
+  }, [html, bySignature, path, model]);
 
   // Mermaid diagrams (wiki) render lazily, only when a page contains one.
   useEffect(() => {
@@ -180,7 +184,7 @@ export function Docs() {
               }
             />
             <article
-              className="prose prose-sm prose-invert max-w-[72ch] prose-headings:scroll-mt-6 prose-headings:font-semibold prose-h1:hidden prose-h2:mt-10 prose-h2:border-b prose-h2:border-border-subtle prose-h2:pb-2 prose-h2:text-base prose-h3:text-sm prose-p:text-muted-foreground prose-a:text-foreground prose-a:underline-offset-4 prose-strong:text-foreground prose-code:rounded prose-code:bg-surface-3 prose-code:px-1 prose-code:py-0.5 prose-code:font-mono prose-code:text-[0.85em] prose-code:font-normal prose-code:text-foreground prose-code:before:content-none prose-code:after:content-none prose-pre:border prose-pre:bg-canvas prose-li:text-muted-foreground prose-li:marker:text-faint-foreground [&_li]:[overflow-wrap:anywhere]"
+              className="prose prose-sm prose-invert max-w-none [&>p]:max-w-[72ch] [&>ul]:max-w-[72ch] [&>ol]:max-w-[72ch] prose-headings:scroll-mt-6 prose-headings:font-semibold prose-h1:hidden prose-h2:mt-10 prose-h2:border-b prose-h2:border-border-subtle prose-h2:pb-2 prose-h2:text-base prose-h3:text-sm prose-p:text-muted-foreground prose-a:text-foreground prose-a:underline-offset-4 prose-strong:text-foreground prose-code:rounded prose-code:bg-surface-3 prose-code:px-1 prose-code:py-0.5 prose-code:font-mono prose-code:text-[0.85em] prose-code:font-normal prose-code:text-foreground prose-code:before:content-none prose-code:after:content-none prose-pre:border prose-pre:bg-canvas prose-li:text-muted-foreground prose-li:marker:text-faint-foreground [&_li]:[overflow-wrap:anywhere]"
               ref={body}
               onClick={onClick}
               dangerouslySetInnerHTML={{ __html: html }}

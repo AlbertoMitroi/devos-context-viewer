@@ -53,8 +53,11 @@ const KIND_HUE: Record<string, number> = {
   operator: 270,
 };
 
+// Plain-object lookups must ignore inherited keys: a kind named "constructor" is real C# data.
+const own = <T>(o: Record<string, T>, k: string): T | undefined => (Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined);
+
 export function kindColor(kind: string): RGB {
-  const h = KIND_HUE[kind];
+  const h = own(KIND_HUE, kind);
   return h === undefined ? oklch(0.7, 0.03, 260) : oklch(0.74, 0.13, h);
 }
 
@@ -78,7 +81,7 @@ const RELATION: Record<string, [number, number]> = {
 };
 
 export function relationColor(kind: string): RGB {
-  const v = RELATION[kind];
+  const v = own(RELATION, kind);
   if (v) return oklch(0.74, v[1], v[0]);
   let h = 0;
   for (let i = 0; i < kind.length; i++) h = (h * 31 + kind.charCodeAt(i)) | 0;
@@ -88,7 +91,7 @@ export function relationColor(kind: string): RGB {
 const NEUTRAL_KINDS: Record<string, number> = { project: 0.86, package: 0.62, group: 0.55, pkgnamespace: 0.6 };
 
 export function symbolColor(kind: string): RGB {
-  const l = NEUTRAL_KINDS[kind];
+  const l = own(NEUTRAL_KINDS, kind);
   return l !== undefined ? oklch(l, 0.01, 260) : kindColor(kind);
 }
 

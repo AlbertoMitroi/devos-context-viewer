@@ -169,7 +169,7 @@ describe('search and evidence', () => {
 
 import { buildMapLayout, computeFrame, locate, nearestSibling, OPEN_PX, OPEN_START_PX } from '../src/model/mapLayout';
 import { bundle, controlPoints, createEdgeRouter } from '../src/map/edges';
-import { contrast, kindColor, projectColor } from '../src/theme/palette';
+import { contrast, kindColor, projectColor, symbolColor } from '../src/theme/palette';
 
 describe('map', () => {
   const s = state();
@@ -347,5 +347,36 @@ describe('ego graph', () => {
     expect(cols.get(run.id)!.x).toBeLessThan(cols.get(CENTER)!.x);
     const radial = layoutEgo(g.items, 'radial');
     expect(radial.get(run.id)!.x).toBeLessThan(0);
+  });
+});
+
+describe('design tokens', () => {
+  const css = readFileSync(path.join(__dirname, '..', 'src', 'index.css'), 'utf8');
+  const dark = css.slice(css.indexOf('.dark {'));
+  const token = (name: string): [number, number, number] => {
+    const m = new RegExp(`--${name}: ([\\d.]+) ([\\d.]+)% ([\\d.]+)%;`).exec(dark)!;
+    const [h, s, l] = [Number(m[1]), Number(m[2]) / 100, Number(m[3]) / 100];
+    const a = s * Math.min(l, 1 - l);
+    const f = (n: number) => {
+      const k = (n + h / 30) % 12;
+      return Math.round((l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))) * 255);
+    };
+    return [f(0), f(8), f(4)];
+  };
+
+  it('keeps the three text levels readable on cards and panels', () => {
+    for (const bg of ['card', 'surface-1', 'background']) {
+      for (const fg of ['foreground', 'muted-foreground', 'subtle-foreground']) {
+        expect(contrast(token(fg), token(bg))).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+});
+
+describe('palette lookups', () => {
+  it('gives the constructor kind a real colour (not Object.prototype.constructor)', () => {
+    const c = symbolColor('constructor');
+    expect(c.every((v) => Number.isFinite(v))).toBe(true);
+    expect(c).toEqual(kindColor('constructor'));
   });
 });

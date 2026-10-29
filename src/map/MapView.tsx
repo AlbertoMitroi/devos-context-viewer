@@ -373,7 +373,24 @@ export function MapView() {
   // Focus and context: inside a project, everything outside it recedes and loses its labels.
   const focusRoot = crumbs[0] ?? null;
   const ctxOf = (n: MapNode) => (!focusRoot || n.root === focusRoot ? 1 : 0.22);
-  const fadeOf = (n: MapNode) => (frame.fade.get(n.id) ?? 1) * ctxOf(n);
+  // Hover or selection: only the active node, what its drawn edges connect to, and their containers stay lit.
+  const lit = useMemo(() => {
+    if (!active.size) return null;
+    const out = new Set<string>();
+    const add = (id: string) => {
+      for (let cur: string | null = id; cur && !out.has(cur); cur = layout.nodes.get(cur)?.parent ?? null) out.add(cur);
+    };
+    for (const id of active) add(id);
+    for (const e of activeEdges) {
+      add(e.source);
+      add(e.target);
+    }
+    for (const id of active) for (const d of layout.nodes.get(id)?.children ?? []) out.add(d);
+    return out;
+  }, [active, activeEdges, layout]);
+  const litKey = lit ? [...active].join('|') + activeEdges.length : '';
+  const hlOf = (n: MapNode) => (!lit || lit.has(n.id) ? 1 : 0.22);
+  const fadeOf = (n: MapNode) => (frame.fade.get(n.id) ?? 1) * ctxOf(n) * hlOf(n);
   const openOf = (n: MapNode) => frame.openness.get(n.id) ?? 0;
   const regions = frame.drawn.filter((n) => openOf(n) > 0);
   const orbs = frame.drawn.filter((n) => openOf(n) < 1);
@@ -407,7 +424,8 @@ export function MapView() {
       getLineWidth: 1,
       lineWidthUnits: 'pixels',
       pickable: true,
-      updateTriggers: { getFillColor: [frame, focusRoot], getLineColor: [frame, focusRoot] },
+      updateTriggers: { getFillColor: [frame, focusRoot, litKey], getLineColor: [frame, focusRoot, litKey] },
+      transitions: { getFillColor: 160, getLineColor: 160 },
     }),
     new PathLayer<EdgeHalf>({
       id: 'edges',
@@ -440,7 +458,8 @@ export function MapView() {
       getLineWidth: (n) => (n.id === selectedOnMap || hits.has(n.id) ? 2 : n.id === hoverId ? 1.5 : 1),
       lineWidthUnits: 'pixels',
       pickable: true,
-      updateTriggers: { getFillColor: [frame, rootColor, focusRoot], getLineColor: [frame, selectedOnMap, hits, hoverId, focusRoot], getLineWidth: [selectedOnMap, hits, hoverId] },
+      updateTriggers: { getFillColor: [frame, rootColor, focusRoot, litKey], getLineColor: [frame, selectedOnMap, hits, hoverId, focusRoot, litKey], getLineWidth: [selectedOnMap, hits, hoverId] },
+      transitions: { getFillColor: 160, getLineColor: 160 },
     }),
     // Soft white halo around the selection (neutral accent).
     new ScatterplotLayer<MapNode>({
@@ -495,7 +514,7 @@ export function MapView() {
       characterSet: 'auto',
       getTextAnchor: 'middle',
       getAlignmentBaseline: 'center',
-      updateTriggers: { getColor: [frame, focusRoot], getBackgroundColor: [frame, focusRoot], getBorderColor: [frame, focusRoot] },
+      updateTriggers: { getColor: [frame, focusRoot, litKey], getBackgroundColor: [frame, focusRoot, litKey], getBorderColor: [frame, focusRoot, litKey] },
     }),
     new TextLayer<MapNode>({
       id: 'region-subtitles',
@@ -513,7 +532,7 @@ export function MapView() {
       fontSettings: { sdf: true, buffer: 6 },
       getTextAnchor: 'middle',
       getAlignmentBaseline: 'center',
-      updateTriggers: { getColor: [frame, focusRoot] },
+      updateTriggers: { getColor: [frame, focusRoot, litKey] },
     }),
     new TextLayer<MapNode>({
       id: 'labels',
@@ -536,7 +555,7 @@ export function MapView() {
       collisionEnabled: true,
       getCollisionPriority: (n: MapNode) => n.r * scale,
       collisionTestProps: { sizeScale: 1.2 },
-      updateTriggers: { getText: [zq], getSize: [zq], getColor: [frame, focusRoot], getCollisionPriority: [zq] },
+      updateTriggers: { getText: [zq], getSize: [zq], getColor: [frame, focusRoot, litKey], getCollisionPriority: [zq] },
     } as never),
   ];
 
