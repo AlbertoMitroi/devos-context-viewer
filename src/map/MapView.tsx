@@ -284,8 +284,9 @@ export function MapView() {
 
   const onPick = (info: PickingInfo | null) => {
     const obj = info?.object as MapNode | EdgeHalf | MapEdge | undefined;
+    // Empty canvas: deselect only. Going up stays on the background of the circle you are in, Backspace and the breadcrumb.
     if (!obj) {
-      goUp();
+      set({ selection: null });
       return;
     }
     if ('edge' in obj || 'edgeIdx' in obj) {
@@ -298,8 +299,10 @@ export function MapView() {
       return;
     }
     // Clicking the background of the circle you are in goes up; clicking anything else goes into it.
+    // Background of the circle you are in: first click deselects, the next one goes up.
     if (crumbs.includes(obj.id) && frame.open.has(obj.id)) {
-      upFrom(obj.id);
+      if (selection) set({ selection: null });
+      else upFrom(obj.id);
       return;
     }
     // First click selects (and centres if needed), a second click on the selection goes in.

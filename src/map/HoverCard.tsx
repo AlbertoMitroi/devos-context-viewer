@@ -79,7 +79,7 @@ export function HoverCard({ hover, layout, model, open, selected }: { hover: { x
       )}
       <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-foreground">
         <MousePointerClick className="size-3.5" />
-        {open ? 'Click empty space to go up' : !n.children.length ? 'Click for details' : selected ? 'Click again to go in' : 'Click to select · double-click to go in'}
+        {open ? 'Click empty space to deselect, again to go up' : !n.children.length ? 'Click for details' : selected ? 'Click again to go in' : 'Click to select · double-click to go in'}
       </p>
     </div>
   );
