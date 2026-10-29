@@ -5,24 +5,35 @@ import { kindLabel } from '@/model/kinds';
 import type { MapEdge, MapNode } from '@/model/mapLayout';
 import { relationColor, rgbCss } from '@/theme/palette';
 import { useStore } from '@/store';
+import type { GraphModel } from '@/model/graphModel';
+import type { MapLayout } from '@/model/mapLayout';
+import { HoverDetails } from './HoverCard';
 
 const GROUPS = new Set(['project', 'package', 'group', 'pkgnamespace']);
 
 /** What the colours mean, for what is on screen. Clicking an entry hides or shows that kind. */
-export function Legend({ drawn, edges }: { drawn: MapNode[]; edges: MapEdge[] }) {
+export interface HoverState {
+  x: number;
+  y: number;
+  node?: MapNode;
+  edge?: MapEdge;
+}
+
+export function Legend({ drawn, edges, hover, layout, model, hoverOpen, hoverSelected }: { drawn: MapNode[]; edges: MapEdge[]; hover: HoverState | null; layout: MapLayout; model: GraphModel; hoverOpen: boolean; hoverSelected: boolean }) {
   const [open, setOpen] = useState(true);
   const entityKinds = useStore((s) => s.entityKinds);
   const edgeKinds = useStore((s) => s.edgeKinds);
   const toggleIn = useStore((s) => s.toggleIn);
   const kinds = useMemo(() => [...new Set(drawn.map((n) => n.kind).filter((k) => !GROUPS.has(k)))].sort(), [drawn]);
   const rels = useMemo(() => [...new Set(edges.flatMap((e) => Object.keys(e.kinds)))].sort(), [edges]);
-  if (!kinds.length && !rels.length) return null;
+  if (!kinds.length && !rels.length && !hover) return null;
   return (
     <div
-      className="absolute bottom-4 left-[180px] z-10 w-56 rounded-xl border bg-popover/90 text-xs shadow-lg backdrop-blur"
+      className="absolute bottom-4 left-[180px] z-10 w-72 overflow-hidden rounded-xl border bg-popover/90 text-xs shadow-lg backdrop-blur"
       onPointerDown={(e) => e.stopPropagation()}
       onPointerUp={(e) => e.stopPropagation()}
     >
+      {hover && <HoverDetails hover={hover} layout={layout} model={model} open={hoverOpen} selected={hoverSelected} />}
       <button className="flex w-full items-center justify-between px-3 py-2 text-2xs font-medium uppercase tracking-[0.08em] text-subtle-foreground hover:text-foreground" onClick={() => setOpen(!open)} aria-expanded={open}>
         Legend
         <ChevronDown className={`size-3.5 transition-transform ${open ? '' : '-rotate-90'}`} />

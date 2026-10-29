@@ -16,23 +16,22 @@ function counts(model: GraphModel, id: string, dir: 'out' | 'in') {
   return [...m.entries()].sort((a, b) => b[1] - a[1]);
 }
 
-/** Hover card on the map, shown after a short delay so it does not flicker while the pointer travels. */
-export function HoverCard({ hover, layout, model, open, selected }: { hover: { x: number; y: number; node?: MapNode; edge?: MapEdge }; layout: MapLayout; model: GraphModel; open: boolean; selected: boolean }) {
+/** Details of what is under the pointer, shown inside the legend card after a short delay (no flicker while travelling). */
+export function HoverDetails({ hover, layout, model, open, selected }: { hover: { x: number; y: number; node?: MapNode; edge?: MapEdge }; layout: MapLayout; model: GraphModel; open: boolean; selected: boolean }) {
   const [shown, setShown] = useState(false);
   const key = hover.node?.id ?? (hover.edge ? `${hover.edge.source}|${hover.edge.target}` : '');
   useEffect(() => {
     setShown(false);
-    const t = setTimeout(() => setShown(true), 150);
+    const t = setTimeout(() => setShown(true), 80);
     return () => clearTimeout(t);
   }, [key]);
   if (!shown) return null;
-  const style = { left: hover.x + 16, top: hover.y + 16 };
-  const shell = 'pointer-events-none absolute z-20 w-max max-w-sm rounded-lg border bg-popover/95 p-3 text-popover-foreground shadow-xl backdrop-blur animate-in fade-in-0 zoom-in-95';
+  const shell = 'border-b px-3 py-3 animate-in fade-in-0';
 
   if (hover.edge) {
     const e = hover.edge;
     return (
-      <div className={shell} style={style} role="tooltip">
+      <div className={shell} role="status" aria-live="polite">
         <p className="text-sm font-medium">
           {layout.nodes.get(e.source)?.label} <span className="text-muted-foreground">↔</span> {layout.nodes.get(e.target)?.label}
         </p>
@@ -57,7 +56,7 @@ export function HoverCard({ hover, layout, model, open, selected }: { hover: { x
   const outs = counts(model, n.id, 'out').slice(0, 3);
   const ins = counts(model, n.id, 'in').slice(0, 3);
   return (
-    <div className={shell} style={style} role="tooltip">
+    <div className={shell} role="status" aria-live="polite">
       <div className="flex items-center gap-2.5">
         <KindGlyph kind={n.kind} size="lg" />
         <div className="min-w-0">

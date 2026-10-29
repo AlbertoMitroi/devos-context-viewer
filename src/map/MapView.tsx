@@ -14,7 +14,6 @@ import { Camera, prefersReducedMotion, wheelZoomDelta, type Cam } from './camera
 import { OrbLayer, RegionLayer } from './OrbLayer';
 import { createEdgeRouter, pointAt, type Point } from './edges';
 import { Minimap } from './Minimap';
-import { HoverCard } from './HoverCard';
 import { MapControls } from './MapControls';
 import { Legend } from './Legend';
 import { fitLabel } from './labels';
@@ -376,23 +375,23 @@ export function MapView() {
   // Focus and context: inside a project, everything outside it recedes and loses its labels.
   const focusRoot = crumbs[0] ?? null;
   const ctxOf = (n: MapNode) => (!focusRoot || n.root === focusRoot ? 1 : 0.22);
-  // Hover or selection: only the active node, what its drawn edges connect to, and their containers stay lit.
-  const lit = useMemo(() => {
+  // Hover or selection: three tiers. The active node and what its drawn edges connect to stay fully lit,
+  // their containers stay half lit for orientation, everything else almost disappears.
+  const highlight = useMemo(() => {
     if (!active.size) return null;
-    const out = new Set<string>();
-    const add = (id: string) => {
-      for (let cur: string | null = id; cur && !out.has(cur); cur = layout.nodes.get(cur)?.parent ?? null) out.add(cur);
-    };
-    for (const id of active) add(id);
+    const ends = new Set<string>(active);
     for (const e of activeEdges) {
-      add(e.source);
-      add(e.target);
+      ends.add(e.source);
+      ends.add(e.target);
     }
-    for (const id of active) for (const d of layout.nodes.get(id)?.children ?? []) out.add(d);
-    return out;
+    for (const id of active) for (const d of layout.nodes.get(id)?.children ?? []) ends.add(d);
+    const containers = new Set<string>();
+    for (const id of ends) for (let p = layout.nodes.get(id)?.parent ?? null; p && !containers.has(p); p = layout.nodes.get(p)?.parent ?? null) containers.add(p);
+    return { ends, containers };
   }, [active, activeEdges, layout]);
-  const litKey = lit ? [...active].join('|') + activeEdges.length : '';
-  const hlOf = (n: MapNode) => (!lit || lit.has(n.id) ? 1 : 0.22);
+  const litKey = highlight ? [...active].join('|') + activeEdges.length : '';
+  const hlOf = (n: MapNode) => (!highlight || highlight.ends.has(n.id) ? 1 : highlight.containers.has(n.id) ? 0.4 : 0.07);
+  const isEnd = (n: MapNode) => !!highlight && highlight.ends.has(n.id) && !active.has(n.id);
   const fadeOf = (n: MapNode) => (frame.fade.get(n.id) ?? 1) * ctxOf(n) * hlOf(n);
   const openOf = (n: MapNode) => frame.openness.get(n.id) ?? 0;
   const regions = frame.drawn.filter((n) => openOf(n) > 0);
@@ -455,13 +454,15 @@ export function MapView() {
         const a = (1 - openOf(n)) * fadeOf(n);
         if (n.id === selectedOnMap) return [250, 250, 250, a8(255 * a)];
         if (hits.has(n.id)) return [250, 204, 21, a8(255 * a)];
-        if (n.id === hoverId) return [...lighten(lineOf(n), 0.45), a8(255 * a)] as RGBA;
+        if (n.id === hoverId) return [250, 250, 250, a8(230 * a)];
+        // Connected circles get a bright rim so the endpoints of every line are obvious.
+        if (isEnd(n)) return [...lighten(lineOf(n), 0.6), a8(255 * a)] as RGBA;
         return [...lineOf(n), a8(200 * a)] as RGBA;
       },
-      getLineWidth: (n) => (n.id === selectedOnMap || hits.has(n.id) ? 2 : n.id === hoverId ? 1.5 : 1),
+      getLineWidth: (n) => (n.id === selectedOnMap || hits.has(n.id) || n.id === hoverId ? 2.5 : isEnd(n) ? 2 : 1),
       lineWidthUnits: 'pixels',
       pickable: true,
-      updateTriggers: { getFillColor: [frame, rootColor, focusRoot, litKey], getLineColor: [frame, selectedOnMap, hits, hoverId, focusRoot, litKey], getLineWidth: [selectedOnMap, hits, hoverId] },
+      updateTriggers: { getFillColor: [frame, rootColor, focusRoot, litKey], getLineColor: [frame, selectedOnMap, hits, hoverId, focusRoot, litKey], getLineWidth: [selectedOnMap, hits, hoverId, litKey] },
       transitions: { getFillColor: 160, getLineColor: 160 },
     }),
     // Soft white halo around the selection (neutral accent).
@@ -481,8 +482,8 @@ export function MapView() {
       id: 'edges-active',
       data: activeEdges,
       getPath: (e) => route(e.source, e.target) as never,
-      getColor: (e) => (edgeKey(e) === selectedEdgeKey ? [250, 250, 250, 255] : ([...lighten(relationColor(e.kind), 0.1), a8(215 * Math.max(0.35, edgeFade(e)))] as RGBA)),
-      getWidth: (e) => Math.min(8, 1.5 + Math.log2(e.count) * 1.1),
+      getColor: (e) => (edgeKey(e) === selectedEdgeKey ? [250, 250, 250, 255] : ([...lighten(relationColor(e.kind), 0.2), 255] as RGBA)),
+      getWidth: (e) => Math.min(9, 2.5 + Math.log2(e.count) * 1.2),
       widthUnits: 'pixels',
       capRounded: true,
       jointRounded: true,
@@ -613,16 +614,15 @@ export function MapView() {
         onZoomOut={() => camera.zoomAt(size.width / 2, size.height / 2, -1)}
         onFit={() => navigate(null, { select: false })}
       />
-      <Legend drawn={frame.drawn} edges={activeEdges.length ? activeEdges : edges} />
-      {hover && (
-        <HoverCard
-          hover={hover}
-          layout={layout}
-          model={model}
-          open={hover.node ? frame.open.has(hover.node.id) && crumbs.includes(hover.node.id) : false}
-          selected={!!hover.node && hover.node.id === selectedOnMap}
-        />
-      )}
+      <Legend
+        drawn={frame.drawn}
+        edges={activeEdges.length ? activeEdges : edges}
+        hover={hover}
+        layout={layout}
+        model={model}
+        hoverOpen={hover?.node ? frame.open.has(hover.node.id) && crumbs.includes(hover.node.id) : false}
+        hoverSelected={!!hover?.node && hover.node.id === selectedOnMap}
+      />
     </div>
   );
 }
