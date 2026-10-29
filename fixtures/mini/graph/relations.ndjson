@@ -1,0 +1,8 @@
+{"id":"rel:1","kind":"calls_declared_target","from":"dotnet:src/App/App.csproj:M:Acme.App.Service.Run","to":"dotnet:src/Core/Core.csproj:M:Acme.Core.IRepo.Get","resolution":"exact","evidence":["ev:1"]}
+{"id":"rel:2","kind":"possible_runtime_target","from":"dotnet:src/App/App.csproj:M:Acme.App.Service.Run","to":"dotnet:src/Core/Core.csproj:M:Acme.Core.Repo.Get","resolution":"candidate","evidence":["ev:1"]}
+{"id":"rel:3","kind":"implements","from":"dotnet:src/Core/Core.csproj:T:Acme.Core.Repo","to":"dotnet:src/Core/Core.csproj:T:Acme.Core.IRepo","resolution":"exact","evidence":["ev:2"]}
+{"id":"rel:4","kind":"references","usage":"invocation","from":"dotnet:src/Core/Core.csproj:M:Acme.Core.Repo.Get","to":"dotnet:pkg:Lib.Pkg@1.0.0:Lib:M:Lib.Helper.Do","resolution":"exact","evidence":["ev:3"]}
+{"id":"rel:5","kind":"references","usage":"other","from":"dotnet:tests/Core.Tests/Core.Tests.csproj:T:RepoTests","to":"dotnet:src/Core/Core.csproj:T:Acme.Core.Repo","resolution":"exact","evidence":["ev:3"]}
+{"id":"rel:6","kind":"contains","from":"dotnet:src/Core/Core.csproj:T:Acme.Core.Repo","to":"dotnet:src/Core/Core.csproj:M:Acme.Core.Repo.Get","resolution":"exact","evidence":["ev:2"]}
+{"id":"rel:7","kind":"future.kind","from":"dotnet:src/Core/Core.csproj:T:Acme.Core.Repo","to":"dotnet:src/Core/Core.csproj:T:Acme.Core.Unused","resolution":"exact","evidence":["ev:2"]}
+{"id":"rel:8","kind":"references","usage":"read","from":"dotnet:src/Core/Core.csproj:T:Acme.Core.Repo","to":"dotnet:missing:X","resolution":"exact","evidence":["ev:2"]}

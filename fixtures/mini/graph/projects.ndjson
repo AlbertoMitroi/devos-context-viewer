@@ -1,0 +1,3 @@
+{"assemblyName":"App","id":"prj:app","packages":[{"direct":true,"id":"Lib.Pkg","version":"1.0.0"}],"path":"src/App/App.csproj","projectReferences":["src/Core/Core.csproj"],"recordType":"project"}
+{"assemblyName":"Core","id":"prj:core","packages":[],"path":"src/Core/Core.csproj","projectReferences":[],"recordType":"project"}
+{"assemblyName":"Core.Tests","id":"prj:tests","packages":[],"path":"tests/Core.Tests/Core.Tests.csproj","projectReferences":["src/Core/Core.csproj"],"recordType":"project"}

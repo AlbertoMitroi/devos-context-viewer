@@ -1,0 +1,13 @@
+{"id":"dotnet:src/App/App.csproj:N:Acme","kind":"namespace","name":"Acme","container":null,"origin":"source","project":"src/App/App.csproj"}
+{"id":"dotnet:src/App/App.csproj:N:Acme.App","kind":"namespace","name":"App","container":"dotnet:src/App/App.csproj:N:Acme","origin":"source","project":"src/App/App.csproj"}
+{"id":"dotnet:src/App/App.csproj:T:Acme.App.Service","kind":"class","name":"Service","container":"dotnet:src/App/App.csproj:N:Acme.App","origin":"source","project":"src/App/App.csproj","signature":"Acme.App.Service"}
+{"id":"dotnet:src/App/App.csproj:M:Acme.App.Service.Run","kind":"method","name":"Run","container":"dotnet:src/App/App.csproj:T:Acme.App.Service","origin":"source","project":"src/App/App.csproj"}
+{"id":"dotnet:src/Core/Core.csproj:N:Acme.Core","kind":"namespace","name":"Core","container":null,"origin":"source","project":"src/Core/Core.csproj"}
+{"id":"dotnet:src/Core/Core.csproj:T:Acme.Core.IRepo","kind":"interface","name":"IRepo","container":"dotnet:src/Core/Core.csproj:N:Acme.Core","origin":"source","project":"src/Core/Core.csproj"}
+{"id":"dotnet:src/Core/Core.csproj:M:Acme.Core.IRepo.Get","kind":"method","name":"Get","container":"dotnet:src/Core/Core.csproj:T:Acme.Core.IRepo","origin":"source","project":"src/Core/Core.csproj"}
+{"id":"dotnet:src/Core/Core.csproj:T:Acme.Core.Repo","kind":"class","name":"Repo","container":"dotnet:src/Core/Core.csproj:N:Acme.Core","origin":"source","project":"src/Core/Core.csproj"}
+{"id":"dotnet:src/Core/Core.csproj:M:Acme.Core.Repo.Get","kind":"method","name":"Get","container":"dotnet:src/Core/Core.csproj:T:Acme.Core.Repo","origin":"source","project":"src/Core/Core.csproj"}
+{"id":"dotnet:src/Core/Core.csproj:T:Acme.Core.Unused","kind":"class","name":"Unused","container":"dotnet:src/Core/Core.csproj:N:Acme.Core","origin":"source","project":"src/Core/Core.csproj"}
+{"id":"dotnet:tests/Core.Tests/Core.Tests.csproj:T:RepoTests","kind":"class","name":"RepoTests","container":null,"origin":"source","project":"tests/Core.Tests/Core.Tests.csproj"}
+{"id":"dotnet:pkg:Lib.Pkg@1.0.0:Lib:T:Lib.Helper","kind":"class","name":"Helper","container":null,"origin":"metadata","namespace":"Lib","assembly":"Lib"}
+{"id":"dotnet:pkg:Lib.Pkg@1.0.0:Lib:M:Lib.Helper.Do","kind":"method","name":"Do","container":"dotnet:pkg:Lib.Pkg@1.0.0:Lib:T:Lib.Helper","origin":"metadata","namespace":"Lib","assembly":"Lib"}

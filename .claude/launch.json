@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "context-viewer", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "--port", "4610", "--strictPort"], "port": 4610 }
+  ]
+}
