@@ -16,10 +16,8 @@ import { Inspector } from '@/components/Inspector';
 import { Tables } from '@/components/Tables';
 import { Overview } from '@/components/Overview';
 import { Docs } from '@/components/Docs';
-import { FocusBar, Toolbar } from '@/components/Toolbar';
+import { NeighbourhoodView } from '@/neighbourhood/NeighbourhoodView';
 import { useStore } from './store';
-import { useView } from './graph/useView';
-import { GraphCanvas } from './graph/GraphCanvas';
 import { MapView } from './map/MapView';
 
 const isTyping = () => {
@@ -44,17 +42,9 @@ function useKeyboard() {
       else if (e.key === 'm') st.set({ tab: 'map' });
       else if (e.key === 'l') st.set({ layersOpen: true });
       else if (st.tab === 'graph') {
-        // Neighbourhood graph shortcuts; the map handles its own.
-        const sel = st.selection?.type === 'node' ? st.selection.id : null;
-        const node = sel ? st.model?.nodes.get(sel) : null;
-        if (e.key === 'Escape') st.set({ selection: null, pathStart: null });
+        if (e.key === 'Escape') st.set({ selection: null });
         else if (e.key === 'i') st.set({ inspectorOpen: !st.inspectorOpen });
-        else if (e.key === 'f' && node) st.setFocus({ ids: [node.id], depth: 2, direction: 'both', label: node.label });
-        else if (e.key === 'e' && node) st.toggleExpanded(node.id);
-        else if (e.key === 'h' && node) st.hide(node.id);
-        else if (e.key === 'z') st.set({ fitTick: st.fitTick + 1 });
         else if (e.key === 'Backspace' && st.focus) st.back();
-        else if (e.key >= '1' && e.key <= '4') st.setLevel(Number(e.key) - 1);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -157,7 +147,6 @@ function LoadingState() {
 
 export function App() {
   const st = useStore();
-  const view = useView();
   useKeyboard();
   useHistorySync();
   useErrorToasts();
@@ -180,8 +169,6 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const tooBig = view && st.tab === 'graph' && view.nodes.length > 3000;
-
   return (
     <TooltipProvider delayDuration={300}>
       <SidebarProvider className="h-svh overflow-hidden">
@@ -196,16 +183,7 @@ export function App() {
           )}
           {st.model && st.tab === 'graph' && (
             <WithInspector>
-              <Toolbar view={view} />
-              <FocusBar />
-              {!st.focus && (
-                <p className="border-b px-4 py-2 text-xs text-muted-foreground">
-                  Pick a symbol on the Map, then choose Neighbourhood, Callers or Callees. Right-click nodes here for more.
-                </p>
-              )}
-              {tooBig && <p className="border-b px-4 py-2 text-xs text-amber-400">{view!.nodes.length} visible nodes: the layout may take a while. Collapse, filter or use Focus.</p>}
-              {view?.stats.focusTruncated && <p className="border-b px-4 py-2 text-xs text-amber-400">Focus truncated at {st.maxFocusNodes} nodes; raise the limit or narrow the relation kinds.</p>}
-              <GraphCanvas view={view} />
+              <NeighbourhoodView />
             </WithInspector>
           )}
           {st.model && st.tab === 'tables' && <Tables />}

@@ -307,3 +307,45 @@ describe('map labels', () => {
     expect(fitLabel('BeginTransactionAsync', 12, false)).toBe('BeginTransa…');
   });
 });
+
+import { buildEgo, CENTER, layoutEgo } from '../src/model/egoGraph';
+
+describe('ego graph', () => {
+  const opts = { direction: 'both' as const, depth: 2, kinds: null, groupThreshold: 12, expanded: new Set<string>(), maxNodes: 1000 };
+
+  it('puts users on the left and used symbols on the right of the centre', () => {
+    const g = buildEgo(model, state(), REPO_GET, opts);
+    const col = (id: string) => g.items.find((i) => i.nodeId === id)?.column;
+    expect(g.items[0].id).toBe(CENTER);
+    expect(col(RUN)).toBe(-1);
+    expect(col(`${K}:M:Lib.Helper.Do`)).toBe(1);
+    expect(g.links.some((l) => l.source === RUN && l.target === CENTER)).toBe(true);
+  });
+
+  it('follows only the requested direction and kinds', () => {
+    const out = buildEgo(model, state(), REPO_GET, { ...opts, direction: 'out' });
+    expect(out.items.some((i) => i.column < 0)).toBe(false);
+    const calls = buildEgo(model, state(), RUN, { ...opts, kinds: ['calls_declared_target'] });
+    expect(calls.items.map((i) => i.nodeId)).toEqual([RUN, `${C}:M:Acme.Core.IRepo.Get`]);
+  });
+
+  it('groups a crowded column per project and expands on request', () => {
+    const g = buildEgo(model, state(), 'prj:core', { ...opts, groupThreshold: 0 });
+    const group = g.items.find((i) => i.id === 'g:-1:prj:app')!;
+    expect(group.type).toBe('group');
+    expect(group.members).toContain(RUN);
+    expect(g.links.some((l) => l.source === group.id && l.target === CENTER)).toBe(true);
+    const open = buildEgo(model, state(), 'prj:core', { ...opts, groupThreshold: 0, expanded: new Set([group.id]) });
+    expect(open.items.some((i) => i.nodeId === RUN && i.type === 'symbol')).toBe(true);
+    expect(open.items.some((i) => i.id === group.id)).toBe(false);
+  });
+
+  it('lays out columns left to right and radial halves', () => {
+    const g = buildEgo(model, state(), REPO_GET, opts);
+    const cols = layoutEgo(g.items, 'columns');
+    const run = g.items.find((i) => i.nodeId === RUN)!;
+    expect(cols.get(run.id)!.x).toBeLessThan(cols.get(CENTER)!.x);
+    const radial = layoutEgo(g.items, 'radial');
+    expect(radial.get(run.id)!.x).toBeLessThan(0);
+  });
+});

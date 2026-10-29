@@ -49,6 +49,8 @@ interface State extends ViewState {
   layersOpen: boolean;
   paletteOpen: boolean;
   shortcutsOpen: boolean;
+  /** Recently visited symbols, newest first. */
+  recent: string[];
   /** Published by the map so the header breadcrumb can show where the view is. */
   mapLayout: MapLayout | null;
   mapPath: string[];
@@ -162,6 +164,7 @@ export const useStore = create<State>((set, get) => ({
   layersOpen: false,
   paletteOpen: false,
   shortcutsOpen: false,
+  recent: [],
   mapLayout: null,
   mapPath: [],
 
@@ -176,7 +179,7 @@ export const useStore = create<State>((set, get) => ({
     const model = get().model;
     const real = model?.nodes.has(id) ? id : model?.alias.get(id);
     if (!real) return;
-    set({ centerOn: real, ...(select ? { selection: { type: 'node' as const, id: real } } : {}) });
+    set({ centerOn: real, recent: [real, ...get().recent.filter((r) => r !== real)].slice(0, 12), ...(select ? { selection: { type: 'node' as const, id: real } } : {}) });
     writeHash(get().activeId, real, push);
   },
 
@@ -349,6 +352,7 @@ export const useStore = create<State>((set, get) => ({
 
   setFocus(focus) {
     const { history, expanded } = get();
+    if (focus?.ids[0]) set({ recent: [focus.ids[0], ...get().recent.filter((r) => r !== focus.ids[0])].slice(0, 12) });
     set({ history: [...history, { focus: get().focus, expanded }].slice(-50), future: [], focus, pathNodes: null, ...(focus ? { tab: 'graph' as Tab } : {}) });
   },
 

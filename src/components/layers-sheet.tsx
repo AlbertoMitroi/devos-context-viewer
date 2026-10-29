@@ -216,34 +216,6 @@ export function LayersSheet() {
                   </div>
                   <Slider min={1} max={50} step={1} value={[st.minWeight]} onValueChange={([v]) => st.set({ minWeight: v })} />
                 </div>
-                {st.tab === 'graph' && (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="merge" className="font-normal">
-                        One edge per pair
-                      </Label>
-                      <Switch id="merge" checked={st.mergeKinds} onCheckedChange={(v) => st.set({ mergeKinds: v })} />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="labels" className="font-normal">
-                        Relation count labels
-                      </Label>
-                      <Switch id="labels" checked={st.edgeLabels} onCheckedChange={(v) => st.set({ edgeLabels: v })} />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="isolated" className="font-normal">
-                        Hide nodes without edges
-                      </Label>
-                      <Switch id="isolated" checked={st.hideIsolated} onCheckedChange={(v) => st.set({ hideIsolated: v })} />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="hover" className="font-normal">
-                        Highlight neighbours on hover
-                      </Label>
-                      <Switch id="hover" checked={st.hoverHighlight} onCheckedChange={(v) => st.set({ hoverHighlight: v })} />
-                    </div>
-                  </>
-                )}
               </div>
             </Section>
             {st.hidden.size > 0 && (
