@@ -11,6 +11,7 @@ import { KindGlyph } from '@/components/kind-glyph';
 import { useStore } from '@/store';
 import type { GenerationData, Json } from '@/model/types';
 import { Fields } from './Inspector';
+import { middleTruncate, PageHeader } from './blocks';
 import { EvidenceList } from './Evidence';
 
 type TableId = 'entities' | 'relations' | 'declarations' | 'observations' | 'links' | 'diagnostics' | 'projects' | 'contexts' | 'files';
@@ -77,7 +78,7 @@ export function Tables() {
     return out;
   }, [rows, kind, st.tableFilter, sort]);
 
-  const virt = useVirtualizer({ count: filtered.length, getScrollElement: () => parent.current, estimateSize: () => 36, overscan: 20 });
+  const virt = useVirtualizer({ count: filtered.length, getScrollElement: () => parent.current, estimateSize: () => 32, overscan: 20 });
   const grid = { gridTemplateColumns: `repeat(${columns.length}, minmax(140px, 1fr))` };
 
   const targetOf = (r: Json) => (tab === 'relations' ? r.from : tab === 'declarations' ? r.entity : r.id) as string | undefined;
@@ -88,11 +89,8 @@ export function Tables() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 p-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Records</h2>
-        <p className="text-sm text-muted-foreground">Every record in the generation, as written by the engine. Unknown fields are shown as they are.</p>
-      </div>
+    <div className="flex min-h-0 flex-1 flex-col gap-4 px-6 py-6">
+      <PageHeader title="Records" description="Every record in the generation, as written by the engine. Unknown fields are shown as they are. Double-click a row to show it on the map." />
       <Tabs
         value={tab}
         onValueChange={(v) => {
@@ -132,13 +130,13 @@ export function Tables() {
         )}
         <span className="ml-auto text-sm text-muted-foreground">{filtered.length.toLocaleString('en-US')} rows</span>
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden rounded-lg border">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-xl border">
         <div className="h-full overflow-auto" ref={parent}>
-          <div className="sticky top-0 z-10 grid border-b bg-muted/60 backdrop-blur" style={grid}>
+          <div className="sticky top-0 z-10 grid border-b bg-surface-1" style={grid}>
             {columns.map((c) => (
               <button
                 key={c}
-                className="flex h-10 items-center gap-1 px-3 text-left text-xs font-medium text-muted-foreground hover:text-foreground"
+                className="flex h-9 items-center gap-1 px-3 text-left text-2xs font-medium uppercase tracking-[0.06em] text-subtle-foreground hover:text-foreground"
                 onClick={() => setSort(sort?.col === c ? { col: c, dir: sort.dir === 1 ? -1 : 1 } : { col: c, dir: 1 })}
                 aria-sort={sort?.col === c ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}
               >
@@ -154,9 +152,9 @@ export function Tables() {
               return (
                 <div
                   key={vi.key}
-                  className="absolute left-0 top-0 grid w-full cursor-pointer border-b text-sm transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
+                  className="absolute left-0 top-0 grid w-full cursor-pointer border-b border-border-subtle text-sm transition-colors hover:bg-surface-3/60 data-[state=selected]:bg-surface-3"
                   data-state={picked === r ? 'selected' : undefined}
-                  style={{ ...grid, transform: `translateY(${vi.start}px)`, height: 36 }}
+                  style={{ ...grid, transform: `translateY(${vi.start}px)`, height: 32 }}
                   onClick={() => setPicked(r)}
                   onDoubleClick={() => reveal(r)}
                 >
@@ -172,7 +170,9 @@ export function Tables() {
                             <span className="truncate">{node.label}</span>
                           </>
                         ) : (
-                          <span className={`truncate ${c === 'id' || c === 'path' ? 'font-mono text-xs text-muted-foreground' : ''}`}>{cell(v)}</span>
+                          <span className={`truncate ${['id', 'path', 'container', 'documentationId', 'context', 'blobId'].includes(c) ? 'font-mono text-2xs text-subtle-foreground' : ''}`}>
+                            {['id', 'container', 'documentationId'].includes(c) ? middleTruncate(cell(v), 40) : cell(v)}
+                          </span>
                         )}
                       </div>
                     );
