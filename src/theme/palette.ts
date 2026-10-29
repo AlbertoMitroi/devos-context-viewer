@@ -58,6 +58,40 @@ export function kindColor(kind: string): RGB {
   return h === undefined ? oklch(0.7, 0.03, 260) : oklch(0.74, 0.13, h);
 }
 
+/** Relation kinds in the same perceptual family; structural and derived kinds stay neutral. */
+const RELATION: Record<string, [number, number]> = {
+  references: [250, 0.05],
+  calls_declared_target: [155, 0.13],
+  possible_runtime_target: [185, 0.12],
+  implements: [300, 0.13],
+  inherits: [275, 0.12],
+  overrides: [330, 0.12],
+  'di.registers': [350, 0.12],
+  'di.consumes': [15, 0.12],
+  consumes_contract: [75, 0.13],
+  configured_route: [95, 0.12],
+  possible_communication: [50, 0.13],
+  project_reference: [260, 0.02],
+  package_reference: [260, 0.02],
+  contains: [260, 0.015],
+  declares: [260, 0.015],
+};
+
+export function relationColor(kind: string): RGB {
+  const v = RELATION[kind];
+  if (v) return oklch(0.74, v[1], v[0]);
+  let h = 0;
+  for (let i = 0; i < kind.length; i++) h = (h * 31 + kind.charCodeAt(i)) | 0;
+  return oklch(0.74, 0.1, Math.abs(h) % 360);
+}
+
+const NEUTRAL_KINDS: Record<string, number> = { project: 0.86, package: 0.62, group: 0.55, pkgnamespace: 0.6 };
+
+export function symbolColor(kind: string): RGB {
+  const l = NEUTRAL_KINDS[kind];
+  return l !== undefined ? oklch(l, 0.01, 260) : kindColor(kind);
+}
+
 export const KIND_GLYPH: Record<string, string> = {
   namespace: 'N',
   class: 'C',
@@ -79,7 +113,7 @@ export const KIND_GLYPH: Record<string, string> = {
   package: 'K',
 };
 
-export const rgbCss = ([r, g, b]: RGB, a = 1) => `rgba(${r}, ${g}, ${b}, ${a})`;
+export const rgbCss = ([r, g, b]: RGB, a = 1) => (a === 1 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${a})`);
 
 function luminance([r, g, b]: RGB) {
   const f = (v: number) => {

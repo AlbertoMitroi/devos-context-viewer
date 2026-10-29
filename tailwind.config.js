@@ -27,7 +27,32 @@ export default {
   				'monospace'
   			]
   		},
+  		fontSize: {
+  			'2xs': ['11px', '16px'],
+  			xs: ['12px', '16px'],
+  			sm: ['13px', '20px'],
+  			base: ['14px', '22px'],
+  			lg: ['16px', '24px'],
+  			xl: ['20px', '28px'],
+  			'2xl': ['24px', '32px']
+  		},
   		colors: {
+  			canvas: 'hsl(var(--canvas))',
+  			surface: {
+  				1: 'hsl(var(--surface-1))',
+  				3: 'hsl(var(--surface-3))'
+  			},
+  			subtle: {
+  				foreground: 'hsl(var(--subtle-foreground))'
+  			},
+  			faint: {
+  				foreground: 'hsl(var(--faint-foreground))'
+  			},
+  			'border-subtle': 'hsl(var(--border-subtle))',
+  			'border-strong': 'hsl(var(--border-strong))',
+  			success: 'hsl(var(--success))',
+  			warning: 'hsl(var(--warning))',
+  			info: 'hsl(var(--info))',
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',

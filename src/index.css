@@ -41,38 +41,55 @@
 
   .dark {
     color-scheme: dark;
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 6% 6%;
+    /* Surfaces, darkest to lightest (see docs/DESIGN.md) */
+    --canvas: 240 8% 3.5%;
+    --background: 240 6% 5%;
+    --surface-1: 240 5% 7%;
+    --card: 240 5% 8.5%;
     --card-foreground: 0 0% 98%;
-    --popover: 240 6% 6%;
+    --popover: 240 5% 9.5%;
     --popover-foreground: 0 0% 98%;
+    --surface-3: 240 4% 13%;
+    /* Text */
+    --foreground: 0 0% 98%;
+    --muted-foreground: 240 5% 68%;
+    --subtle-foreground: 240 4% 56%;
+    --faint-foreground: 240 4% 38%;
+    /* Neutral accent: white */
     --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
+    --primary-foreground: 240 6% 8%;
+    --secondary: 240 4% 13%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
+    --muted: 240 4% 13%;
+    --accent: 240 4% 14%;
     --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 50.6%;
+    /* Borders */
+    --border-subtle: 240 4% 11%;
+    --border: 240 4% 15%;
+    --border-strong: 240 4% 24%;
+    --input: 240 4% 17%;
+    --ring: 240 5% 70%;
+    /* Semantic */
+    --destructive: 0 72% 60%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --success: 152 55% 50%;
+    --warning: 38 90% 60%;
+    --info: 210 85% 66%;
+    --chart-1: 0 0% 92%;
+    --chart-2: 240 5% 64%;
+    --chart-3: 240 4% 42%;
+    --chart-4: 38 90% 60%;
+    --chart-5: 152 55% 50%;
+    --radius: 0.5rem;
+    /* Sidebar */
+    --sidebar-background: 240 6% 5%;
+    --sidebar-foreground: 240 5% 82%;
+    --sidebar-primary: 0 0% 98%;
+    --sidebar-primary-foreground: 240 6% 8%;
+    --sidebar-accent: 240 4% 12%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 240 4% 11%;
+    --sidebar-ring: 240 5% 70%;
   }
 }
 
@@ -86,8 +103,13 @@
     @apply h-full;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-[13px] text-foreground antialiased;
     font-feature-settings: 'cv11', 'ss01';
+  }
+  .tabular-nums,
+  code,
+  .font-mono {
+    font-variant-numeric: tabular-nums;
   }
 }
 @layer base {
@@ -102,7 +124,7 @@
 @layer components {
   /* Map background: dot grid that moves and scales with the camera (size and position set inline). */
   .map-wrap {
-    background-color: hsl(240 10% 3.9%);
+    background-color: hsl(var(--canvas));
     background-image: radial-gradient(circle, rgba(161, 161, 170, calc(0.14 * var(--grid-alpha, 1))) 1px, transparent 1.6px);
   }
   .map-vignette {
