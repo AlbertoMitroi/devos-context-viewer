@@ -14,11 +14,11 @@ export function SourceContext({ path, store, span, radius = 6 }: { path: string;
       alive = false;
     };
   }, [path, store, source]);
-  if (text === undefined) return <div className="muted small">se încarcă sursa…</div>;
+  if (text === undefined) return <div className="muted small">loading source…</div>;
   if (text === null)
     return (
       <div className="muted small">
-        Sursa nu e disponibilă ({store === 'generation' ? 'fișier generat lipsă' : 'adaugă "source" în viewer.config.json pentru fișierele din repo'}).
+        Source not available ({store === 'generation' ? 'generated file missing' : 'add "source" to viewer.config.json for repository files'}).
       </div>
     );
   const lines = text.split(/\r?\n/);
@@ -42,15 +42,15 @@ export function SourceContext({ path, store, span, radius = 6 }: { path: string;
 
 function EvidenceItem({ e }: { e: Evidence }) {
   const [open, setOpen] = useState(false);
-  if (e.missing) return <div className="ev missing">dovadă lipsă: {e.id}</div>;
+  if (e.missing) return <div className="ev missing">missing evidence: {e.id}</div>;
   return (
     <div className="ev">
       <div className="ev-head">
-        <button className="link mono" onClick={() => setOpen(!open)} title="Arată contextul sursei">
+        <button className="link mono" onClick={() => setOpen(!open)} title="Show source context">
           {loc(e.path, e.span)}
         </button>
         <span className="badge">{e.method}</span>
-        {e.store === 'generation' && <span className="badge">generat</span>}
+        {e.store === 'generation' && <span className="badge">generated</span>}
       </div>
       {e.snippetText && !open && <pre className="code snippet">{e.snippetText}</pre>}
       {open && <SourceContext path={e.path} store={e.store} span={e.span} />}
@@ -74,8 +74,8 @@ export function EvidenceList({ ids, limit = 20 }: { ids: string[]; limit?: numbe
       alive = false;
     };
   }, [ids, max, evidence]);
-  if (!ids.length) return <div className="muted small">fără dovezi</div>;
-  if (!items) return <div className="muted small">se încarcă dovezile…</div>;
+  if (!ids.length) return <div className="muted small">no evidence</div>;
+  if (!items) return <div className="muted small">loading evidence…</div>;
   return (
     <div className="ev-list">
       {items.map((e) => (
@@ -83,7 +83,7 @@ export function EvidenceList({ ids, limit = 20 }: { ids: string[]; limit?: numbe
       ))}
       {ids.length > max && (
         <button className="link" onClick={() => setMax(max + 50)}>
-          încă {Math.min(50, ids.length - max)} din {ids.length - max} rămase
+          {Math.min(50, ids.length - max)} more of {ids.length - max} remaining
         </button>
       )}
     </div>

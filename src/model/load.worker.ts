@@ -38,10 +38,10 @@ self.onmessage = async (ev: MessageEvent<WorkerRequest>) => {
       await Promise.all(
         names.map(async (n) => {
           texts[n] = await read(msg.handles[n]);
-          post({ type: 'progress', message: `citit ${n}` });
+          post({ type: 'progress', message: `read ${n}` });
         }),
       );
-      post({ type: 'progress', message: 'parsare' });
+      post({ type: 'progress', message: 'parsing' });
       const data = buildGenerationData(texts, msg.files);
       const errors: ParseError[] = [];
       const idx = buildEvidenceIndex(texts, errors);

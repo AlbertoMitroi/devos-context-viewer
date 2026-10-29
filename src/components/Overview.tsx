@@ -12,7 +12,7 @@ function Bars({ entries, color, label = (k) => k }: { entries: [string, number][
           <span className="bar-track">
             <span className="bar" style={{ width: `${(c / max) * 100}%`, background: color(k) }} />
           </span>
-          <span className="bar-count">{c.toLocaleString('ro-RO')}</span>
+          <span className="bar-count">{c.toLocaleString('en-US')}</span>
         </div>
       ))}
     </div>
@@ -40,73 +40,73 @@ export function Overview() {
     <div className="overview">
       {unsupported.length > 0 && (
         <div className="alert">
-          Generația cere capabilități pe care viewer-ul nu le cunoaște: {unsupported.join(', ')}. Conform contractului, datele nu ar trebui interpretate.
+          The generation requires capabilities this viewer does not know: {unsupported.join(', ')}. Per the contract, the data should not be interpreted.
         </div>
       )}
-      {schemaMajor && schemaMajor !== '0' && schemaMajor !== '1' && <div className="alert">schemaVersion {String(m.schemaVersion)}: versiune majoră necunoscută.</div>}
+      {schemaMajor && schemaMajor !== '0' && schemaMajor !== '1' && <div className="alert">schemaVersion {String(m.schemaVersion)}: unknown major version.</div>}
       {data.parseErrors.length > 0 && (
         <div className="alert">
-          {data.parseErrors.length} erori de parsare, ex. {data.parseErrors[0].file}:{data.parseErrors[0].line} {data.parseErrors[0].message}
+          {data.parseErrors.length} parse errors, e.g. {data.parseErrors[0].file}:{data.parseErrors[0].line} {data.parseErrors[0].message}
         </div>
       )}
-      {model.unknownKinds.length > 0 && <div className="alert info">Tipuri de relații necunoscute (păstrate, excluse din traversare): {model.unknownKinds.join(', ')}</div>}
+      {model.unknownKinds.length > 0 && <div className="alert info">Unknown relation kinds (kept, excluded from traversal): {model.unknownKinds.join(', ')}</div>}
       {model.dangling.count > 0 && (
         <div className="alert info" title={model.dangling.samples.join('\n')}>
-          {model.dangling.count} relații cu capăt inexistent (ignorate în graf). Ex.: {model.dangling.samples[0]}
+          {model.dangling.count} relations with a missing endpoint (ignored in the graph). E.g.: {model.dangling.samples[0]}
         </div>
       )}
 
       <div className="cards">
         <div className="card">
-          <h3>Generație</h3>
+          <h3>Generation</h3>
           <table className="fields">
             <tbody>
-              <tr><th>repo</th><td>{repo ?? 'necunoscut'}</td></tr>
+              <tr><th>repo</th><td>{repo ?? 'unknown'}</td></tr>
               <tr><th>commit</th><td className="mono">{String(m.commit ?? '')}{m.dirty ? ' (dirty)' : ''}</td></tr>
               <tr><th>status</th><td><span className={`badge status-${String(m.status)}`}>{String(m.status ?? '?')}</span></td></tr>
               <tr><th>schemaVersion</th><td>{String(m.schemaVersion ?? '?')}</td></tr>
               <tr><th>engine</th><td>{engine ? `${engine.name} ${engine.version}` : '?'}</td></tr>
               <tr><th>Roslyn</th><td>{roslyn ? String(roslyn.build ?? roslyn.apiVersion) : '?'}</td></tr>
-              <tr><th>SDK-uri</th><td>{((m.sdks as Json[] | undefined) ?? []).map((s) => String(s.version)).join(', ')}</td></tr>
-              <tr><th>imagine</th><td className="mono">{String(m.imageDigest ?? '?')}</td></tr>
-              <tr><th>soluții</th><td>{((m.solutions as Json[] | undefined) ?? []).map((s) => String(s.path)).join(', ')}</td></tr>
-              <tr><th>încărcare viewer</th><td>{data.loadMs} ms</td></tr>
+              <tr><th>SDKs</th><td>{((m.sdks as Json[] | undefined) ?? []).map((s) => String(s.version)).join(', ')}</td></tr>
+              <tr><th>image</th><td className="mono">{String(m.imageDigest ?? '?')}</td></tr>
+              <tr><th>solutions</th><td>{((m.solutions as Json[] | undefined) ?? []).map((s) => String(s.path)).join(', ')}</td></tr>
+              <tr><th>viewer load</th><td>{data.loadMs} ms</td></tr>
             </tbody>
           </table>
         </div>
         <div className="card">
-          <h3>Înregistrări</h3>
+          <h3>Records</h3>
           <Bars entries={Object.entries(data.counts).filter(([, c]) => c > 0)} color={() => '#4f9cf9'} />
           {stages.length > 0 && (
             <>
-              <h3>Etape (run.json, ms)</h3>
+              <h3>Stages (run.json, ms)</h3>
               <Bars entries={stages} color={() => '#34d399'} />
             </>
           )}
         </div>
         <div className="card">
-          <h3>Relații pe tip</h3>
+          <h3>Relations by kind</h3>
           <Bars entries={sorted(model.edgeKinds)} color={edgeColor} label={kindLabel} />
-          <h3>Rezoluție</h3>
+          <h3>Resolution</h3>
           <Bars entries={sorted(model.resolutions)} color={(k) => (k === 'exact' ? '#34d399' : '#f59e0b')} />
         </div>
         <div className="card">
-          <h3>Entități pe tip</h3>
+          <h3>Entities by kind</h3>
           <Bars entries={sorted(model.entityKinds)} color={nodeColor} />
-          <h3>Origine</h3>
+          <h3>Origin</h3>
           <Bars entries={sorted(model.origins)} color={(k) => (k === 'source' ? '#4f9cf9' : k === 'generated' ? '#a78bfa' : '#64748b')} />
         </div>
       </div>
 
       <div className="card wide">
-        <h3>Acoperire pe proiect ({coverage.length})</h3>
+        <h3>Coverage by project ({coverage.length})</h3>
         <table className="grid-table">
           <thead>
             <tr>
-              <th>proiect</th>
-              <th>stare</th>
-              <th>entități</th>
-              <th>diagnostice</th>
+              <th>project</th>
+              <th>state</th>
+              <th>entities</th>
+              <th>diagnostics</th>
             </tr>
           </thead>
           <tbody>
@@ -133,7 +133,7 @@ export function Overview() {
       </div>
 
       <div className="card wide">
-        <h3>Diagnostice ({data.diagnostics.length})</h3>
+        <h3>Diagnostics ({data.diagnostics.length})</h3>
         {data.diagnostics.map((d) => (
           <div key={d.id} className={`diag sev-${d.severity}`}>
             <b>{d.code}</b> <span className="badge">{d.severity}</span> <span className="badge">{d.state}</span> <span className="muted small">{d.scope}</span>

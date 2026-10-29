@@ -128,7 +128,7 @@ export function buildGraphModel(data: GenerationData, opts: BuildOptions = {}): 
     const id = `pkg:${pkg}@${version}`;
     return (
       nodes.get(id) ??
-      add({ id, parent: ensureGroup(GROUP_PACKAGES, 'Pachete externe').id, label: `${pkg} ${version}`, fullName: `${pkg}@${version}`, kind: 'package', tier: 'group', origin: 'metadata', isTest: false })
+      add({ id, parent: ensureGroup(GROUP_PACKAGES, 'External packages').id, label: `${pkg} ${version}`, fullName: `${pkg}@${version}`, kind: 'package', tier: 'group', origin: 'metadata', isTest: false })
     );
   };
 
@@ -154,7 +154,7 @@ export function buildGraphModel(data: GenerationData, opts: BuildOptions = {}): 
       } else if (e.project) {
         parent = ensureGroup(`group:project:${e.project}`, e.project).id;
       } else {
-        parent = ensureGroup(GROUP_UNASSIGNED, 'Fără proiect').id;
+        parent = ensureGroup(GROUP_UNASSIGNED, 'Unassigned').id;
       }
     }
     add({
@@ -176,7 +176,7 @@ export function buildGraphModel(data: GenerationData, opts: BuildOptions = {}): 
     let p = n.parent;
     while (p) {
       if (seen.has(p) || !nodes.has(p)) {
-        n.parent = ensureGroup(GROUP_UNASSIGNED, 'Fără proiect').id;
+        n.parent = ensureGroup(GROUP_UNASSIGNED, 'Unassigned').id;
         break;
       }
       seen.add(p);

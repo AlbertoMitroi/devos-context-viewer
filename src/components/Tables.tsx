@@ -8,15 +8,15 @@ import { EvidenceList } from './Evidence';
 type TableId = 'entities' | 'relations' | 'declarations' | 'observations' | 'links' | 'diagnostics' | 'projects' | 'contexts' | 'files';
 
 const TABLES: { id: TableId; label: string; priority: string[] }[] = [
-  { id: 'entities', label: 'Entități', priority: ['kind', 'name', 'signature', 'origin', 'accessibility', 'project', 'assembly', 'id'] },
-  { id: 'relations', label: 'Relații', priority: ['kind', 'from', 'to', 'usage', 'resolution', 'context'] },
-  { id: 'declarations', label: 'Declarații', priority: ['entity', 'path', 'store', 'generator', 'context'] },
-  { id: 'observations', label: 'Observații', priority: ['kind'] },
-  { id: 'links', label: 'Legături', priority: ['kind', 'resolution'] },
-  { id: 'diagnostics', label: 'Diagnostice', priority: ['severity', 'state', 'code', 'scope', 'message'] },
-  { id: 'projects', label: 'Proiecte', priority: ['assemblyName', 'path', 'targetFrameworks', 'resolvedSdk'] },
-  { id: 'contexts', label: 'Contexte', priority: ['project', 'loadMode', 'reason', 'targetFramework', 'configuration'] },
-  { id: 'files', label: 'Fișiere', priority: ['path', 'size'] },
+  { id: 'entities', label: 'Entities', priority: ['kind', 'name', 'signature', 'origin', 'accessibility', 'project', 'assembly', 'id'] },
+  { id: 'relations', label: 'Relations', priority: ['kind', 'from', 'to', 'usage', 'resolution', 'context'] },
+  { id: 'declarations', label: 'Declarations', priority: ['entity', 'path', 'store', 'generator', 'context'] },
+  { id: 'observations', label: 'Observations', priority: ['kind'] },
+  { id: 'links', label: 'Links', priority: ['kind', 'resolution'] },
+  { id: 'diagnostics', label: 'Diagnostics', priority: ['severity', 'state', 'code', 'scope', 'message'] },
+  { id: 'projects', label: 'Projects', priority: ['assemblyName', 'path', 'targetFrameworks', 'resolvedSdk'] },
+  { id: 'contexts', label: 'Contexts', priority: ['project', 'loadMode', 'reason', 'targetFramework', 'configuration'] },
+  { id: 'files', label: 'Files', priority: ['path', 'size'] },
 ];
 
 function rowsFor(data: GenerationData, id: TableId): Json[] {
@@ -71,7 +71,7 @@ export function Tables() {
         return tokens.every((t) => s.includes(t));
       });
     }
-    if (sort) out = [...out].sort((a, b) => cell(a[sort.col]).localeCompare(cell(b[sort.col]), 'ro', { numeric: true }) * sort.dir);
+    if (sort) out = [...out].sort((a, b) => cell(a[sort.col]).localeCompare(cell(b[sort.col]), 'en', { numeric: true }) * sort.dir);
     return out;
   }, [rows, kind, st.tableFilter, sort]);
 
@@ -103,15 +103,15 @@ export function Tables() {
               setPicked(null);
             }}
           >
-            {t.label} <span className="count">{rowsFor(data, t.id).length.toLocaleString('ro-RO')}</span>
+            {t.label} <span className="count">{rowsFor(data, t.id).length.toLocaleString('en-US')}</span>
           </button>
         ))}
       </div>
       <div className="table-filters">
-        <input placeholder="Filtru text (toate câmpurile)…" value={st.tableFilter} onChange={(e) => st.set({ tableFilter: e.target.value })} />
+        <input placeholder="Text filter (all fields)…" value={st.tableFilter} onChange={(e) => st.set({ tableFilter: e.target.value })} />
         {kinds.length > 0 && (
           <select value={kind} onChange={(e) => setKind(e.target.value)}>
-            <option value="">toate tipurile</option>
+            <option value="">all kinds</option>
             {kinds.map(([k, c]) => (
               <option key={k} value={k}>
                 {k} ({c})
@@ -119,7 +119,7 @@ export function Tables() {
             ))}
           </select>
         )}
-        <span className="muted small">{filtered.length.toLocaleString('ro-RO')} rânduri</span>
+        <span className="muted small">{filtered.length.toLocaleString('en-US')} rows</span>
       </div>
       <div className="table-main">
         <div className="table-scroll" ref={parent}>
@@ -130,7 +130,7 @@ export function Tables() {
               </div>
             ))}
           </div>
-          {!rows.length && <div className="muted empty">Fișierul este gol în această generație.</div>}
+          {!rows.length && <div className="muted empty">This file is empty in this generation.</div>}
           <div style={{ height: virt.getTotalSize(), position: 'relative' }}>
             {virt.getVirtualItems().map((vi) => {
               const r = filtered[vi.index];
@@ -165,8 +165,8 @@ export function Tables() {
         {picked && (
           <aside className="table-detail">
             <div className="actions">
-              <button onClick={() => reveal(picked)}>Arată în graf</button>
-              <button onClick={() => setPicked(null)}>Închide</button>
+              <button onClick={() => reveal(picked)}>Show on map</button>
+              <button onClick={() => setPicked(null)}>Close</button>
             </div>
             <Fields rec={picked} skip={['evidence']} />
             {Array.isArray(picked.evidence) && <EvidenceList ids={picked.evidence as string[]} limit={10} />}

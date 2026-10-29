@@ -166,3 +166,54 @@ describe('search and evidence', () => {
     expect(idx.snippets.get('snip:1')).toBe('    repo.Get();');
   });
 });
+
+import { buildMapLayout, computeFrame, locate, OPEN_PX } from '../src/model/mapLayout';
+
+describe('map', () => {
+  const s = state();
+  const layout = buildMapLayout(model, s);
+  const all = { minX: -1e9, maxX: 1e9, minY: -1e9, maxY: 1e9 };
+
+  it('nests every included node inside its parent circle', () => {
+    for (const n of layout.nodes.values()) {
+      if (!n.parent) continue;
+      const p = layout.nodes.get(n.parent)!;
+      expect(Math.hypot(n.x - p.x, n.y - p.y) + n.r).toBeLessThanOrEqual(p.r + 1e-6);
+    }
+    expect(layout.roots.sort()).toEqual(['group:packages', 'prj:app', 'prj:core', 'prj:tests']);
+  });
+
+  it('zoomed out shows only roots, with relations aggregated between them', () => {
+    const f = computeFrame(model, layout, s, { scale: 1e-6, ...all });
+    expect(f.open.size).toBe(0);
+    expect(f.drawn.map((n) => n.id).sort()).toEqual(['group:packages', 'prj:app', 'prj:core', 'prj:tests']);
+    const appCore = f.edges.find((e) => [e.source, e.target].sort().join() === 'prj:app,prj:core')!;
+    expect(appCore.count).toBe(3); // call + possible runtime target + project reference
+  });
+
+  it('zoomed in opens circles and routes relations to members', () => {
+    const f = computeFrame(model, layout, s, { scale: 1e6, ...all });
+    expect(f.open.has('prj:core')).toBe(true);
+    expect(f.edges.some((e) => [e.source, e.target].includes(RUN) && [e.source, e.target].includes(REPO_GET))).toBe(true);
+  });
+
+  it('opens a circle exactly when its radius on screen reaches the threshold', () => {
+    const core = layout.nodes.get('prj:core')!;
+    expect(computeFrame(model, layout, s, { scale: (OPEN_PX - 1) / core.r, ...all }).open.has('prj:core')).toBe(false);
+    expect(computeFrame(model, layout, s, { scale: (OPEN_PX * (1 + 1e-9)) / core.r, ...all }).open.has('prj:core')).toBe(true);
+  });
+
+  it('origin filter removes packages from the map and their relations', () => {
+    const src = state({ origins: new Set(['source']) });
+    const l2 = buildMapLayout(model, src);
+    expect(l2.nodes.has('group:packages')).toBe(false);
+    const f = computeFrame(model, l2, src, { scale: 1e6, ...all });
+    expect(f.edges.some((e) => e.target.includes('pkg') || e.source.includes('pkg'))).toBe(false);
+  });
+
+  it('locates the deepest open circle under a point for the breadcrumb', () => {
+    const core = layout.nodes.get('prj:core')!;
+    const f = computeFrame(model, layout, s, { scale: (OPEN_PX * (1 + 1e-9)) / core.r, ...all });
+    expect(locate(layout, f.open, core.x, core.y)[0]).toBe('prj:core');
+  });
+});

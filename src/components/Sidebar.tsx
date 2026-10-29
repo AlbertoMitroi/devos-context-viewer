@@ -22,10 +22,10 @@ function AllNone({ onAll, onNone }: { onAll: () => void; onNone: () => void }) {
   return (
     <>
       <button className="link" onClick={onAll}>
-        toate
+        all
       </button>
       <button className="link" onClick={onNone}>
-        niciuna
+        none
       </button>
     </>
   );
@@ -38,7 +38,7 @@ function Check({ checked, onChange, color, label, count, title, badge }: { check
       {color && <span className="swatch" style={{ background: color }} />}
       <span className="row-label">{label}</span>
       {badge && <span className="badge">{badge}</span>}
-      {count !== undefined && <span className="count">{count.toLocaleString('ro-RO')}</span>}
+      {count !== undefined && <span className="count">{count.toLocaleString('en-US')}</span>}
     </label>
   );
 }
@@ -57,13 +57,13 @@ export function GenerationPicker() {
   }, [st.generations]);
   return (
     <Section
-      title="Repo-uri și generații"
+      title="Repositories and generations"
       extra={
         <>
-          <button className="link" onClick={() => st.refreshGenerations()} title="Rescanează generațiile de pe server">
+          <button className="link" onClick={() => st.refreshGenerations()} title="Rescan generations on the server">
             ↻
           </button>
-          <button className="link" onClick={() => fileInput.current?.click()} title="Deschide un folder de generație din calculator">
+          <button className="link" onClick={() => fileInput.current?.click()} title="Open a generation folder from this computer">
             + folder
           </button>
         </>
@@ -78,7 +78,7 @@ export function GenerationPicker() {
         multiple
         onChange={(e) => e.target.files && st.addLocalFolder(e.target.files)}
       />
-      {!st.generations.length && <p className="muted small">Nicio generație găsită. Configurează viewer.config.json sau alege un folder.</p>}
+      {!st.generations.length && <p className="muted small">No generations found. Configure viewer.config.json or pick a folder.</p>}
       {byRepo.map(([repo, gens]) => (
         <div key={repo} className="repo">
           <div className="repo-name" title={repo}>
@@ -109,7 +109,7 @@ export function Filters() {
 
   return (
     <>
-      <Section title="Relații" extra={<AllNone onAll={() => st.setAll('edgeKinds', edgeKinds.map(([k]) => k))} onNone={() => st.setAll('edgeKinds', [])} />}>
+      <Section title="Relations" extra={<AllNone onAll={() => st.setAll('edgeKinds', edgeKinds.map(([k]) => k))} onNone={() => st.setAll('edgeKinds', [])} />}>
         {edgeKinds.map(([k, c]) => (
           <Check
             key={k}
@@ -119,12 +119,12 @@ export function Filters() {
             label={kindLabel(k)}
             count={c}
             title={k}
-            badge={!isKnownEdgeKind(k) ? 'necunoscut' : STRUCTURAL_KINDS.has(k) ? 'structură' : undefined}
+            badge={!isKnownEdgeKind(k) ? 'unknown' : STRUCTURAL_KINDS.has(k) ? 'structure' : undefined}
           />
         ))}
       </Section>
       {model.usages.size > 0 && (
-        <Section title="Utilizare (referințe)" defaultOpen={false} extra={<AllNone onAll={() => st.setAll('usages', [...model.usages.keys()])} onNone={() => st.setAll('usages', [])} />}>
+        <Section title="Usage (references)" defaultOpen={false} extra={<AllNone onAll={() => st.setAll('usages', [...model.usages.keys()])} onNone={() => st.setAll('usages', [])} />}>
           {[...model.usages.entries()]
             .sort((a, b) => b[1] - a[1])
             .map(([k, c]) => (
@@ -132,38 +132,38 @@ export function Filters() {
             ))}
         </Section>
       )}
-      <Section title="Rezoluție" defaultOpen={false}>
+      <Section title="Resolution" defaultOpen={false}>
         {[...model.resolutions.entries()].map(([k, c]) => (
           <Check key={k} checked={st.resolutions.has(k)} onChange={() => st.toggleIn('resolutions', k)} label={k} count={c} />
         ))}
       </Section>
-      <Section title="Origine">
+      <Section title="Origin">
         {[...model.origins.entries()].map(([k, c]) => (
           <Check
             key={k}
             checked={st.origins.has(k)}
             onChange={() => st.toggleIn('origins', k)}
-            label={k === 'source' ? 'cod sursă' : k === 'generated' ? 'cod generat' : k === 'metadata' ? 'pachete externe (metadata)' : k}
+            label={k === 'source' ? 'source code' : k === 'generated' ? 'generated code' : k === 'metadata' ? 'external packages (metadata)' : k}
             count={c}
           />
         ))}
       </Section>
-      <Section title="Tipuri de entități" defaultOpen={false} extra={<AllNone onAll={() => st.setAll('entityKinds', entityKinds.map(([k]) => k))} onNone={() => st.setAll('entityKinds', [])} />}>
-        <p className="muted small">Un tip ascuns rămâne vizibil doar ca container; relațiile lui se mută pe părinte.</p>
+      <Section title="Entity kinds" defaultOpen={false} extra={<AllNone onAll={() => st.setAll('entityKinds', entityKinds.map(([k]) => k))} onNone={() => st.setAll('entityKinds', [])} />}>
+        <p className="muted small">A hidden kind stays visible only as a container; its relations move to the parent.</p>
         {entityKinds.map(([k, c]) => (
           <Check key={k} checked={st.entityKinds.has(k)} onChange={() => st.toggleIn('entityKinds', k)} color={nodeColor(k)} label={k} count={c} />
         ))}
       </Section>
       <Section
-        title={`Proiecte și pachete (${model.roots.length})`}
+        title={`Projects and packages (${model.roots.length})`}
         defaultOpen={false}
         extra={<AllNone onAll={() => st.setAll('disabledRoots', [])} onNone={() => st.setAll('disabledRoots', model.roots)} />}
       >
         <label className="row-check">
           <input type="checkbox" checked={st.hideTests} onChange={() => st.set({ hideTests: !st.hideTests })} />
-          <span className="row-label">ascunde proiectele de test</span>
+          <span className="row-label">hide test projects</span>
         </label>
-        <input className="mini-search" placeholder="filtrează…" value={projQ} onChange={(e) => setProjQ(e.target.value)} />
+        <input className="mini-search" placeholder="filter…" value={projQ} onChange={(e) => setProjQ(e.target.value)} />
         {roots.map((n) => (
           <Check
             key={n.id}
@@ -172,35 +172,35 @@ export function Filters() {
             color={nodeColor(n.kind)}
             label={n.label}
             count={n.descendants}
-            badge={n.isTest ? 'test' : n.kind === 'group' ? 'grup' : undefined}
+            badge={n.isTest ? 'test' : n.kind === 'group' ? 'group' : undefined}
             title={n.fullName}
           />
         ))}
       </Section>
-      <Section title="Afișare">
-        <Check checked={st.mergeKinds} onChange={() => st.set({ mergeKinds: !st.mergeKinds })} label="o singură muchie per pereche (combină tipurile)" />
-        <Check checked={st.edgeLabels} onChange={() => st.set({ edgeLabels: !st.edgeLabels })} label="etichete cu numărul de relații" />
-        <Check checked={st.hideIsolated} onChange={() => st.set({ hideIsolated: !st.hideIsolated })} label="ascunde nodurile fără muchii" />
-        <Check checked={st.hoverHighlight} onChange={() => st.set({ hoverHighlight: !st.hoverHighlight })} label="evidențiază vecinii la hover" />
+      <Section title="Display">
+        <Check checked={st.mergeKinds} onChange={() => st.set({ mergeKinds: !st.mergeKinds })} label="one edge per pair (merge kinds)" />
+        <Check checked={st.edgeLabels} onChange={() => st.set({ edgeLabels: !st.edgeLabels })} label="relation count labels" />
+        <Check checked={st.hideIsolated} onChange={() => st.set({ hideIsolated: !st.hideIsolated })} label="hide nodes without edges" />
+        <Check checked={st.hoverHighlight} onChange={() => st.set({ hoverHighlight: !st.hoverHighlight })} label="highlight neighbours on hover" />
         <label className="range">
-          <span>pondere minimă muchie: {st.minWeight}</span>
+          <span>minimum edge weight: {st.minWeight}</span>
           <input type="range" min={1} max={50} value={st.minWeight} onChange={(e) => st.set({ minWeight: Number(e.target.value) })} />
         </label>
       </Section>
       {st.hidden.size > 0 && (
-        <Section title={`Ascunse (${st.hidden.size})`} extra={<button className="link" onClick={() => st.setAll('hidden', [])}>arată toate</button>}>
+        <Section title={`Hidden (${st.hidden.size})`} extra={<button className="link" onClick={() => st.setAll('hidden', [])}>show all</button>}>
           {[...st.hidden].map((id) => (
             <div key={id} className="hidden-row">
               <span title={id}>{model.nodes.get(id)?.label ?? id}</span>
               <button className="link" onClick={() => st.toggleIn('hidden', id)}>
-                arată
+                show
               </button>
             </div>
           ))}
         </Section>
       )}
       <div className="section-actions">
-        <button onClick={st.resetFilters}>Resetează filtrele</button>
+        <button onClick={st.resetFilters}>Reset filters</button>
       </div>
     </>
   );

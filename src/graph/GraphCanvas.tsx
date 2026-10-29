@@ -138,7 +138,7 @@ export function GraphCanvas({ view }: { view: ViewResult | null }) {
       const p = ev.renderedPosition;
       const v = graphRef.view?.edges.find((e) => e.id === d.id);
       const kinds = v ? Object.entries(v.kinds).map(([k, c]) => `${kindLabel(k)}: ${c}`).join(', ') : d.kind;
-      setTooltip({ x: p.x, y: p.y, text: `${d.count} relații · ${kinds}` });
+      setTooltip({ x: p.x, y: p.y, text: `${d.count} relations · ${kinds}` });
     });
     cy.on('mouseout', 'node, edge', () => {
       setTooltip(null);

@@ -78,7 +78,7 @@ export function edgePasses(e: Edge, s: ViewState) {
 }
 
 /** Nodes excluded outright (their edges disappear); kind filters only hide nodes, never edges. */
-function makeExcluded(model: GraphModel, s: ViewState) {
+export function makeExcluded(model: GraphModel, s: ViewState) {
   const memo = new Map<string, boolean>();
   const excluded = (id: string): boolean => {
     const cached = memo.get(id);

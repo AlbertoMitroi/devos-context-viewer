@@ -6,7 +6,7 @@ import { useStore, type LayoutName } from '../store';
 import type { ViewResult } from '../model/graphView';
 import { nodeColor } from '../model/kinds';
 
-const LEVELS = ['Proiecte', 'Namespace-uri', 'Tipuri', 'Membri'];
+const LEVELS = ['Projects', 'Namespaces', 'Types', 'Members'];
 
 export function Toolbar({ view }: { view: ViewResult | null }) {
   const st = useStore();
@@ -16,7 +16,7 @@ export function Toolbar({ view }: { view: ViewResult | null }) {
   const [cursor, setCursor] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const model = st.model;
-  const name = (st.generations.find((g) => g.id === st.activeId)?.label ?? 'graf').replace(/[^\w.-]+/g, '_');
+  const name = (st.generations.find((g) => g.id === st.activeId)?.label ?? 'graph').replace(/[^\w.-]+/g, '_');
 
   useEffect(() => {
     if (!model) return;
@@ -50,7 +50,7 @@ export function Toolbar({ view }: { view: ViewResult | null }) {
       <div className="search">
         <input
           ref={input}
-          placeholder="Caută simbol, tip, proiect…  (/)   ex: Basket kind:interface"
+          placeholder="Search symbol, type, project…  (/)   e.g. Basket kind:interface"
           value={q}
           onChange={(e) => {
             setQ(e.target.value);
@@ -82,21 +82,21 @@ export function Toolbar({ view }: { view: ViewResult | null }) {
                 </button>
               );
             })}
-            {hits.length > 50 && <div className="search-more">+{hits.length - 50} rezultate; rafinează căutarea</div>}
+            {hits.length > 50 && <div className="search-more">+{hits.length - 50} more results; refine the search</div>}
           </div>
         )}
       </div>
-      <label className="chk" title="Arată doar rezultatele căutării (cu părinții lor)">
+      <label className="chk" title="Show only search results (with their parents)">
         <input
           type="checkbox"
           checked={!!st.searchFilter}
           disabled={!hits.length}
           onChange={(e) => st.set({ searchFilter: e.target.checked ? hits : null })}
         />
-        doar rezultate
+        results only
       </label>
 
-      <div className="seg" title="Nivel de expandare">
+      <div className="seg" title="Expansion level">
         {LEVELS.map((l, i) => (
           <button key={l} onClick={() => st.setLevel(i)}>
             {l}
@@ -111,18 +111,18 @@ export function Toolbar({ view }: { view: ViewResult | null }) {
           </option>
         ))}
       </select>
-      <button onClick={() => st.set({ layoutTick: st.layoutTick + 1 })} title="Rulează din nou layout-ul">
+      <button onClick={() => st.set({ layoutTick: st.layoutTick + 1 })} title="Run the layout again">
         ↻ Layout
       </button>
-      <button onClick={() => st.set({ fitTick: st.fitTick + 1 })} title="Încadrează tot">
-        ⤢ Încadrează
+      <button onClick={() => st.set({ fitTick: st.fitTick + 1 })} title="Fit everything">
+        ⤢ Fit
       </button>
 
       <div className="seg">
-        <button disabled={!st.history.length} onClick={st.back} title="Înapoi">
+        <button disabled={!st.history.length} onClick={st.back} title="Back">
           ←
         </button>
-        <button disabled={!st.future.length} onClick={st.forward} title="Înainte">
+        <button disabled={!st.future.length} onClick={st.forward} title="Forward">
           →
         </button>
       </div>
@@ -130,16 +130,16 @@ export function Toolbar({ view }: { view: ViewResult | null }) {
       <details className="menu">
         <summary>Export</summary>
         <div className="menu-body">
-          <button onClick={() => exportPng(name)}>PNG (tot graful)</button>
+          <button onClick={() => exportPng(name)}>PNG (whole graph)</button>
           <button onClick={() => exportSvg(name)}>SVG</button>
-          <button onClick={() => exportJson(name)}>JSON (vizibil)</button>
+          <button onClick={() => exportJson(name)}>JSON (visible)</button>
         </div>
       </details>
 
       <div className="spacer" />
       {view && (
-        <span className="stats" title="noduri vizibile · muchii agregate · relații reprezentate">
-          {view.nodes.length} noduri · {view.edges.length} muchii · {view.stats.relationsShown} relații
+        <span className="stats" title="visible nodes · aggregated edges · relations represented">
+          {view.nodes.length} nodes · {view.edges.length} edges · {view.stats.relationsShown} relations
         </span>
       )}
     </div>
@@ -154,11 +154,11 @@ export function FocusBar() {
     <div className="focusbar">
       {f && (
         <>
-          <span className="pill">Focus: {f.label ?? f.ids.length + ' noduri'}</span>
+          <span className="pill">Focus: {f.label ?? f.ids.length + ' nodes'}</span>
           {f.depth > 0 && (
             <>
               <label>
-                adâncime
+                depth
                 <input
                   type="number"
                   min={1}
@@ -170,28 +170,28 @@ export function FocusBar() {
               <div className="seg">
                 {(['in', 'both', 'out'] as const).map((d) => (
                   <button key={d} className={f.direction === d ? 'on' : ''} onClick={() => st.set({ focus: { ...f, direction: d } })}>
-                    {d === 'in' ? '← intrări' : d === 'out' ? 'ieșiri →' : '↔ ambele'}
+                    {d === 'in' ? '← incoming' : d === 'out' ? 'outgoing →' : '↔ both'}
                   </button>
                 ))}
               </div>
-              <label title="Limită de noduri atinse">
+              <label title="Maximum nodes reached">
                 max
                 <input type="number" min={20} max={5000} step={50} value={st.maxFocusNodes} onChange={(e) => st.set({ maxFocusNodes: Number(e.target.value) })} />
               </label>
             </>
           )}
-          {f.kinds?.length ? <span className="muted">tipuri: {f.kinds.join(', ')}</span> : null}
-          <button onClick={() => st.setFocus(null)}>✕ Ieși din focus</button>
+          {f.kinds?.length ? <span className="muted">kinds: {f.kinds.join(', ')}</span> : null}
+          <button onClick={() => st.setFocus(null)}>✕ Exit focus</button>
         </>
       )}
       {st.pathStart && (
         <span className="pill warn">
-          Cale: alege nodul țintă (clic dreapta → „Cale până aici”) <button onClick={() => st.set({ pathStart: null })}>anulează</button>
+          Path: pick the target node (right-click → “Path to here”) <button onClick={() => st.set({ pathStart: null })}>cancel</button>
         </span>
       )}
       {st.searchFilter && (
         <span className="pill">
-          Filtru căutare: {st.searchFilter.length} <button onClick={() => st.set({ searchFilter: null })}>✕</button>
+          Search filter: {st.searchFilter.length} <button onClick={() => st.set({ searchFilter: null })}>✕</button>
         </span>
       )}
     </div>

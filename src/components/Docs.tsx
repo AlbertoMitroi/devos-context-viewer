@@ -31,7 +31,7 @@ export function Docs() {
     if (!path || !source) return;
     let alive = true;
     source.readText(path).then((t) => {
-      if (alive) setHtml(t ? (marked.parse(t, { async: false }) as string) : '<p>Fișier lipsă.</p>');
+      if (alive) setHtml(t ? (marked.parse(t, { async: false }) as string) : '<p>File missing.</p>');
     });
     return () => {
       alive = false;
@@ -70,12 +70,12 @@ export function Docs() {
     if (docs.includes(target)) st.set({ docPath: target });
   };
 
-  if (!docs.length) return <div className="empty muted">Generația nu conține context/ sau wiki/ (încă).</div>;
+  if (!docs.length) return <div className="empty muted">This generation has no context/ or wiki/ (yet).</div>;
   const filtered = docs.filter((d) => d.toLowerCase().includes(q.toLowerCase()));
   return (
     <div className="docs">
       <nav className="docs-nav">
-        <input className="mini-search" placeholder="filtrează pagini…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="mini-search" placeholder="filter pages…" value={q} onChange={(e) => setQ(e.target.value)} />
         {filtered.map((d) => (
           <button key={d} className={`doc-link ${d === path ? 'on' : ''}`} onClick={() => st.set({ docPath: d })} title={d}>
             {d.replace(/^(context|wiki)\//, '$1 › ').replace(/\//g, ' › ')}

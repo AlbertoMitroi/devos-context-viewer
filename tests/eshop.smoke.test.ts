@@ -42,3 +42,35 @@ describe.skipIf(!sample || !existsSync(sample))('real generation smoke', () => {
     expect(f.nodes.some((n) => n.id === target.id)).toBe(true);
   });
 });
+
+import { buildMapLayout, computeFrame, MAP_EXTENT } from '../src/model/mapLayout';
+
+describe.skipIf(!sample || !existsSync(sample))('real generation map', () => {
+  it('lays out once and computes frames at several zooms quickly', () => {
+    const texts: Record<string, string | null> = {};
+    for (const f of ['manifest.json', 'run.json', ...GRAPH_FILES]) {
+      const p = path.join(sample!, f);
+      texts[f] = existsSync(p) ? readFileSync(p, 'utf8') : null;
+    }
+    const model = buildGraphModel(buildGenerationData(texts, []));
+    const s: ViewState = {
+      expanded: new Set(), hidden: new Set(),
+      edgeKinds: new Set([...model.edgeKinds.keys()].filter((k) => !STRUCTURAL_KINDS.has(k))),
+      entityKinds: new Set(model.entityKinds.keys()), origins: new Set(['source', 'generated']),
+      resolutions: new Set(model.resolutions.keys()), usages: new Set(model.usages.keys()),
+      disabledRoots: new Set(), hideTests: false, hideIsolated: false, minWeight: 1, mergeKinds: true,
+      focus: null, searchFilter: null, maxFocusNodes: 400,
+    };
+    let t = performance.now();
+    const layout = buildMapLayout(model, s);
+    console.log('layout ms', Math.round(performance.now() - t), 'nodes', layout.nodes.size, 'roots', layout.roots.length);
+    for (const scale of [0.08, 0.3, 1, 3, 10]) {
+      t = performance.now();
+      const half = 600 / scale;
+      const f = computeFrame(model, layout, s, { scale, minX: -half, maxX: half, minY: -half, maxY: half });
+      console.log('scale', scale, 'ms', Math.round(performance.now() - t), 'drawn', f.drawn.length, 'open', f.open.size, 'edges', f.edges.length);
+    }
+    expect(layout.nodes.size).toBeGreaterThan(1000);
+    expect(MAP_EXTENT).toBe(10000);
+  });
+});

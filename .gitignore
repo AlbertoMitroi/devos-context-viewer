@@ -3,3 +3,4 @@ dist/
 viewer.config.json
 *.tsbuildinfo
 .DS_Store
+.impeccable/

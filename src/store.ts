@@ -7,7 +7,8 @@ import { fetchServerGenerations, localSources, serverSource, type DataSource } f
 import type { Evidence, GenerationData, GenerationInfo } from './model/types';
 import type { WorkerRequest, WorkerResponse } from './model/load.worker';
 
-export type Tab = 'graph' | 'tables' | 'overview' | 'docs';
+export type Tab = 'map' | 'graph' | 'tables' | 'overview' | 'docs';
+export type MapEdges = 'all' | 'selection' | 'none';
 export type LayoutName = 'fcose' | 'elk-right' | 'elk-down' | 'concentric' | 'breadthfirst' | 'grid' | 'circle';
 
 export type Selection = { type: 'node'; id: string } | { type: 'edge'; id: string; edgeIdx: number[]; source: string; target: string; kinds: Record<string, number> } | null;
@@ -31,6 +32,7 @@ interface State extends ViewState {
   fitTick: number;
   edgeLabels: boolean;
   hoverHighlight: boolean;
+  mapEdges: MapEdges;
   selection: Selection;
   centerOn: string | null;
   searchQuery: string;
@@ -122,12 +124,13 @@ export const useStore = create<State>((set, get) => ({
   error: null,
   data: null,
   model: null,
-  tab: 'graph',
+  tab: 'map',
   layout: 'fcose',
   layoutTick: 0,
   fitTick: 0,
   edgeLabels: true,
   hoverHighlight: true,
+  mapEdges: 'all',
   selection: null,
   centerOn: null,
   searchQuery: '',
@@ -151,7 +154,7 @@ export const useStore = create<State>((set, get) => ({
   async addLocalFolder(files) {
     const found = await localSources(files);
     if (!found.length) {
-      set({ error: 'Folderul ales nu conține nicio generație (manifest.json sau graph/entities.ndjson).' });
+      set({ error: 'The selected folder contains no generation (manifest.json or graph/entities.ndjson).' });
       return;
     }
     const sources = { ...get().sources };
@@ -164,7 +167,7 @@ export const useStore = create<State>((set, get) => ({
   async openGeneration(id) {
     const source = get().sources[id];
     if (!source) return;
-    set({ loading: 'listare fișiere', error: null, activeId: id });
+    set({ loading: 'listing files', error: null, activeId: id });
     worker?.terminate();
     worker = new Worker(new URL('./model/load.worker.ts', import.meta.url), { type: 'module' });
     const files = await source.listFiles();
@@ -183,11 +186,11 @@ export const useStore = create<State>((set, get) => ({
       };
       worker!.postMessage({ type: 'load', files, handles } satisfies WorkerRequest);
     }).catch((e: Error) => {
-      set({ loading: null, error: `Încărcarea a eșuat: ${e.message}` });
+      set({ loading: null, error: `Loading failed: ${e.message}` });
       return null;
     });
     if (!data) return;
-    set({ loading: 'construire graf' });
+    set({ loading: 'building graph' });
     const model = buildGraphModel(data);
     // Keep later messages flowing to pending evidence requests.
     worker.onmessage = (ev: MessageEvent<WorkerResponse>) => {
@@ -293,7 +296,7 @@ export const useStore = create<State>((set, get) => ({
     const next = new Set(get().expanded);
     for (const a of ancestors(model, real)) next.add(a);
     const n = model.nodes.get(real)!;
-    const patch: Partial<State> = { expanded: next, selection: { type: 'node', id: real }, centerOn: real, tab: 'graph' };
+    const patch: Partial<State> = { expanded: next, selection: { type: 'node', id: real }, centerOn: real, tab: get().tab === 'graph' ? 'graph' : 'map' };
     // Make sure filters do not hide what the user asked to see.
     if (n.tier === 'entity' && !get().entityKinds.has(n.kind)) patch.entityKinds = new Set([...get().entityKinds, n.kind]);
     if (n.origin !== 'group' && !get().origins.has(n.origin)) patch.origins = new Set([...get().origins, n.origin]);
@@ -308,7 +311,7 @@ export const useStore = create<State>((set, get) => ({
 
   setFocus(focus) {
     const { history, expanded } = get();
-    set({ history: [...history, { focus: get().focus, expanded }].slice(-50), future: [], focus, pathNodes: null });
+    set({ history: [...history, { focus: get().focus, expanded }].slice(-50), future: [], focus, pathNodes: null, ...(focus ? { tab: 'graph' as Tab } : {}) });
   },
 
   back() {
@@ -341,7 +344,7 @@ export const useStore = create<State>((set, get) => ({
     if (!model) return false;
     const path = shortestPath(model, get(), from, to, directed);
     if (!path) return false;
-    get().setFocus({ ids: path, depth: 0, direction: 'both', label: `cale: ${path.length} noduri` });
+    get().setFocus({ ids: path, depth: 0, direction: 'both', label: `path: ${path.length} nodes` });
     set({ pathNodes: path, pathStart: null });
     return true;
   },

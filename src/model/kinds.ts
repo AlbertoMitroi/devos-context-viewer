@@ -123,21 +123,21 @@ export const TYPE_KINDS = new Set(['class', 'record', 'struct', 'interface', 'en
 export const MEMBER_KINDS = new Set(['method', 'constructor', 'property', 'field', 'constant', 'event', 'operator', 'enum_member']);
 
 export const KIND_LABELS: Record<string, string> = {
-  references: 'referință',
-  calls_declared_target: 'apel (țintă declarată)',
-  possible_runtime_target: 'țintă posibilă la runtime',
-  implements: 'implementează',
-  inherits: 'moștenește',
-  overrides: 'suprascrie',
-  contains: 'conține',
-  declares: 'declară',
-  'di.registers': 'DI: înregistrează',
-  'di.consumes': 'DI: consumă',
-  project_reference: 'referință de proiect',
-  package_reference: 'referință de pachet',
-  consumes_contract: 'consumă contract',
-  configured_route: 'rută configurată',
-  possible_communication: 'comunicare posibilă',
+  references: 'references',
+  calls_declared_target: 'calls (declared target)',
+  possible_runtime_target: 'possible runtime target',
+  implements: 'implements',
+  inherits: 'inherits',
+  overrides: 'overrides',
+  contains: 'contains',
+  declares: 'declares',
+  'di.registers': 'DI registers',
+  'di.consumes': 'DI consumes',
+  project_reference: 'project reference',
+  package_reference: 'package reference',
+  consumes_contract: 'consumes contract',
+  configured_route: 'configured route',
+  possible_communication: 'possible communication',
 };
 
 export const kindLabel = (k: string) => KIND_LABELS[k] ?? k;

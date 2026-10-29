@@ -174,11 +174,11 @@ export function layoutOptions(name: LayoutName, nodeCount: number, randomize: bo
 }
 
 export const LAYOUTS: { id: LayoutName; label: string }[] = [
-  { id: 'fcose', label: 'Forță (fCoSE)' },
-  { id: 'elk-right', label: 'Straturi → (ELK)' },
-  { id: 'elk-down', label: 'Straturi ↓ (ELK)' },
-  { id: 'concentric', label: 'Concentric (grad)' },
-  { id: 'breadthfirst', label: 'Arbore (BFS)' },
-  { id: 'grid', label: 'Grilă' },
-  { id: 'circle', label: 'Cerc' },
+  { id: 'fcose', label: 'Force (fCoSE)' },
+  { id: 'elk-right', label: 'Layered → (ELK)' },
+  { id: 'elk-down', label: 'Layered ↓ (ELK)' },
+  { id: 'concentric', label: 'Concentric (degree)' },
+  { id: 'breadthfirst', label: 'Tree (BFS)' },
+  { id: 'grid', label: 'Grid' },
+  { id: 'circle', label: 'Circle' },
 ];

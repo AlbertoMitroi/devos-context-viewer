@@ -232,3 +232,8 @@ kbd { font-size: 10px; color: var(--muted); border: 1px solid var(--line); borde
 .markdown pre { background: #070a10; border: 1px solid var(--line); border-radius: 6px; padding: 8px; overflow-x: auto; }
 .markdown a { color: var(--accent); }
 .mermaid { background: #0f1520; border: 1px solid var(--line); border-radius: 8px; padding: 10px; overflow-x: auto; }
+
+.map-wrap { flex: 1; position: relative; min-height: 0; background: radial-gradient(circle at 50% 40%, #0f1626, var(--bg)); }
+.map-crumbs { position: absolute; top: 10px; left: 12px; z-index: 5; background: #0d1320d9; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; font-size: 12.5px; max-width: 70%; }
+.map-zoom { position: absolute; right: 12px; bottom: 12px; z-index: 5; display: flex; flex-direction: column; gap: 4px; }
+.map-zoom button { width: 34px; height: 34px; font-size: 18px; padding: 0; background: #111723e6; }

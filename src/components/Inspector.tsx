@@ -66,14 +66,14 @@ function RelationRow({ e, other, model }: { e: Edge; other: string; model: Graph
   return (
     <div className="rel-row">
       <div className="rel-line">
-        <button className="link caret-btn" onClick={() => setOpen(!open)} title="Dovezi și câmpuri">
+        <button className="link caret-btn" onClick={() => setOpen(!open)} title="Evidence and fields">
           {open ? '▾' : '▸'}
         </button>
         <NodeLink id={other} model={model} />
         {e.usage && <span className="badge">{e.usage}</span>}
         {e.resolution !== 'exact' && <span className="badge warn">{e.resolution}</span>}
-        {e.synthetic && <span className="badge">derivat</span>}
-        {ev.length > 1 && <span className="muted small">{ev.length} dovezi</span>}
+        {e.synthetic && <span className="badge">derived</span>}
+        {ev.length > 1 && <span className="muted small">{ev.length} evidence</span>}
       </div>
       {open && (
         <div className="rel-detail">
@@ -97,7 +97,7 @@ function RelationGroups({ node, model, dir }: { node: HNode; model: GraphModel; 
     return [...m.entries()].sort((a, b) => b[1].length - a[1].length);
   }, [node, model, dir]);
   const [limit, setLimit] = useState<Record<string, number>>({});
-  if (!groups.length) return <div className="muted small">niciuna</div>;
+  if (!groups.length) return <div className="muted small">none</div>;
   return (
     <>
       {groups.map(([kind, list]) => {
@@ -114,7 +114,7 @@ function RelationGroups({ node, model, dir }: { node: HNode; model: GraphModel; 
             ))}
             {list.length > max && (
               <button className="link" onClick={() => setLimit({ ...limit, [kind]: max + 100 })}>
-                încă {Math.min(100, list.length - max)} din {list.length - max}
+                {Math.min(100, list.length - max)} more of {list.length - max}
               </button>
             )}
           </details>
@@ -172,48 +172,48 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
       <div className="mono small wrap muted">
         {node.id}{' '}
         <button className="link" onClick={() => navigator.clipboard?.writeText(node.id)}>
-          copiază
+          copy
         </button>
       </div>
       <div className="actions">
         <button onClick={() => st.setFocus({ ids: [node.id], depth: 2, direction: 'both', label: node.label })}>Focus</button>
-        <button onClick={() => st.setFocus({ ids: [node.id], depth: 2, direction: 'in', label: `← ${node.label}` })}>← Intrări</button>
-        <button onClick={() => st.setFocus({ ids: [node.id], depth: 2, direction: 'out', label: `${node.label} →` })}>Ieșiri →</button>
-        {node.children.length > 0 && <button onClick={() => st.toggleExpanded(node.id)}>{expanded ? 'Restrânge' : 'Expandează'}</button>}
-        <button onClick={() => st.set({ pathStart: node.id })}>Cale de aici</button>
-        <button onClick={() => st.hide(node.id)}>Ascunde</button>
+        <button onClick={() => st.setFocus({ ids: [node.id], depth: 2, direction: 'in', label: `← ${node.label}` })}>← Incoming</button>
+        <button onClick={() => st.setFocus({ ids: [node.id], depth: 2, direction: 'out', label: `${node.label} →` })}>Outgoing →</button>
+        {node.children.length > 0 && <button onClick={() => st.toggleExpanded(node.id)}>{expanded ? 'Collapse' : 'Expand'}</button>}
+        <button onClick={() => st.set({ pathStart: node.id })}>Path from here</button>
+        <button onClick={() => st.hide(node.id)}>Hide</button>
       </div>
 
       {node.entity && (
-        <Block title="Câmpuri">
+        <Block title="Fields">
           <Fields rec={node.entity} skip={['id']} />
         </Block>
       )}
       {project && (
         <>
-          <Block title="Proiect">
+          <Block title="Project">
             <Fields rec={project} skip={['packages', 'projectReferences', 'id']} />
             {coverage && <Fields rec={{ 'coverage.state': coverage.state }} />}
             {card && (
               <button className="link" onClick={() => st.set({ tab: 'docs', docPath: card.path })}>
-                deschide cardul de context ({card.path.split('/').pop()})
+                open context card ({card.path.split('/').pop()})
               </button>
             )}
           </Block>
-          <Block title="Referințe de proiect" count={(project.projectReferences as string[] | undefined)?.length ?? 0}>
+          <Block title="Project references" count={(project.projectReferences as string[] | undefined)?.length ?? 0}>
             {((project.projectReferences as string[]) ?? []).map((p) => {
               const target = model.projectByPath.get(p);
               return <div key={p}>{target ? <NodeLink id={target.id} model={model} /> : <span className="mono small">{p}</span>}</div>;
             })}
           </Block>
-          <Block title="Pachete" open={false} count={(project.packages as unknown[] | undefined)?.length ?? 0}>
+          <Block title="Packages" open={false} count={(project.packages as unknown[] | undefined)?.length ?? 0}>
             <table className="fields">
               <tbody>
                 {((project.packages as { id: string; version: string; direct?: boolean }[]) ?? []).map((p) => (
                   <tr key={p.id}>
                     <th>{p.id}</th>
                     <td>
-                      {p.version} {p.direct ? <span className="badge">direct</span> : <span className="muted small">tranzitiv</span>}
+                      {p.version} {p.direct ? <span className="badge">direct</span> : <span className="muted small">transitive</span>}
                     </td>
                   </tr>
                 ))}
@@ -221,7 +221,7 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
             </table>
           </Block>
           {contexts.length > 0 && (
-            <Block title="Contexte de analiză" open={false} count={contexts.length}>
+            <Block title="Analysis contexts" open={false} count={contexts.length}>
               {contexts.map((c) => (
                 <Fields key={c.id} rec={c} skip={['preprocessorSymbols']} />
               ))}
@@ -230,7 +230,7 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
         </>
       )}
       {diags.length > 0 && (
-        <Block title="Diagnostice" count={diags.length}>
+        <Block title="Diagnostics" count={diags.length}>
           {diags.map((d) => (
             <div key={d.id} className={`diag sev-${d.severity}`}>
               <b>{d.code}</b> <span className="badge">{d.state}</span>
@@ -240,7 +240,7 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
         </Block>
       )}
       {decls.length > 0 && (
-        <Block title="Declarații" count={decls.length}>
+        <Block title="Declarations" count={decls.length}>
           {decls.map((d) => (
             <div key={d.id} className="decl">
               <button className="link mono" onClick={() => setOpenDecl(openDecl === d.id ? null : d.id)}>
@@ -253,7 +253,7 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
         </Block>
       )}
       {childKinds.length > 0 && (
-        <Block title="Conține" count={node.children.length} open={false}>
+        <Block title="Contains" count={node.children.length} open={false}>
           {childKinds.map(([k, c]) => (
             <div key={k} className="small">
               <span className="swatch" style={{ background: nodeColor(k) }} /> {k}: {c}
@@ -266,10 +266,10 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
           </div>
         </Block>
       )}
-      <Block title="Relații de ieșire" count={model.out.get(node.id)?.length ?? 0}>
+      <Block title="Outgoing relations" count={model.out.get(node.id)?.length ?? 0}>
         <RelationGroups node={node} model={model} dir="out" />
       </Block>
-      <Block title="Relații de intrare" count={model.in.get(node.id)?.length ?? 0}>
+      <Block title="Incoming relations" count={model.in.get(node.id)?.length ?? 0}>
         <RelationGroups node={node} model={model} dir="in" />
       </Block>
     </div>
@@ -286,7 +286,7 @@ function EdgeInspector({ sel, model }: { sel: { edgeIdx: number[]; source: strin
       <div className="insp-title">
         <NodeLink id={sel.source} model={model} /> → <NodeLink id={sel.target} model={model} />
       </div>
-      <div className="muted small">{total} relații agregate</div>
+      <div className="muted small">{total} aggregated relations</div>
       <div className="kinds">
         {Object.entries(sel.kinds).map(([k, c]) => (
           <span key={k} className="kind-chip">
@@ -295,7 +295,7 @@ function EdgeInspector({ sel, model }: { sel: { edgeIdx: number[]; source: strin
           </span>
         ))}
       </div>
-      {sel.edgeIdx.length < total && <div className="muted small">se afișează primele {sel.edgeIdx.length}</div>}
+      {sel.edgeIdx.length < total && <div className="muted small">showing the first {sel.edgeIdx.length}</div>}
       {sel.edgeIdx.slice(0, max).map((idx) => {
         const e = model.edges[idx];
         return (
@@ -330,7 +330,7 @@ function EdgeInspector({ sel, model }: { sel: { edgeIdx: number[]; source: strin
       })}
       {sel.edgeIdx.length > max && (
         <button className="link" onClick={() => setMax(max + 200)}>
-          încă {Math.min(200, sel.edgeIdx.length - max)}
+          {Math.min(200, sel.edgeIdx.length - max)} more
         </button>
       )}
     </div>
@@ -344,12 +344,11 @@ export function Inspector() {
   if (!selection)
     return (
       <div className="inspector-body muted small">
-        <p>Selectează un nod sau o muchie.</p>
+        <p>Select a node or an edge.</p>
         <ul className="help">
-          <li>dublu clic: expandează / restrânge</li>
-          <li>clic dreapta: focus, apelanți, cale, ascunde</li>
-          <li>/ caută · F focus · E expandează · H ascunde · Esc deselectează</li>
-          <li>Shift + drag: selecție multiplă</li>
+          <li>Map: scroll to zoom, double-click a circle to fly into it</li>
+          <li>Neighbourhood: double-click expands, right-click for callers, paths, hide</li>
+          <li>/ search · F focus · H hide · Z fit · M map · Esc deselect</li>
         </ul>
       </div>
     );
