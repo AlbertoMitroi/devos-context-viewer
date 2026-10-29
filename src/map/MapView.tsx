@@ -390,7 +390,8 @@ export function MapView() {
     return { ends, containers };
   }, [active, activeEdges, layout]);
   const litKey = highlight ? [...active].join('|') + activeEdges.length : '';
-  const hlOf = (n: MapNode) => (!highlight || highlight.ends.has(n.id) ? 1 : highlight.containers.has(n.id) ? 0.4 : 0.07);
+  // Containers recede almost as far as everything else: only the active node and its connections stay lit.
+  const hlOf = (n: MapNode) => (!highlight || highlight.ends.has(n.id) ? 1 : highlight.containers.has(n.id) ? 0.12 : 0.06);
   const isEnd = (n: MapNode) => !!highlight && highlight.ends.has(n.id) && !active.has(n.id);
   const fadeOf = (n: MapNode) => (frame.fade.get(n.id) ?? 1) * ctxOf(n) * hlOf(n);
   const openOf = (n: MapNode) => frame.openness.get(n.id) ?? 0;
@@ -427,7 +428,6 @@ export function MapView() {
       lineWidthUnits: 'pixels',
       pickable: true,
       updateTriggers: { getFillColor: [frame, focusRoot, litKey], getLineColor: [frame, focusRoot, litKey] },
-      transitions: { getFillColor: 160, getLineColor: 160 },
     }),
     new PathLayer<EdgeHalf>({
       id: 'edges',
@@ -463,7 +463,6 @@ export function MapView() {
       lineWidthUnits: 'pixels',
       pickable: true,
       updateTriggers: { getFillColor: [frame, rootColor, focusRoot, litKey], getLineColor: [frame, selectedOnMap, hits, hoverId, focusRoot, litKey], getLineWidth: [selectedOnMap, hits, hoverId, litKey] },
-      transitions: { getFillColor: 160, getLineColor: 160 },
     }),
     // Soft white halo around the selection (neutral accent).
     new ScatterplotLayer<MapNode>({
@@ -569,7 +568,7 @@ export function MapView() {
   const step = gridWorld * scale;
   const ox = (((size.width / 2 - cam.x * scale) % step) + step) % step;
   const oy = (((size.height / 2 - cam.y * scale) % step) + step) % step;
-  const gridAlpha = Math.min(1, (step - 26) / 26) * 0.5 + 0.5;
+  const gridAlpha = (Math.min(1, (step - 26) / 26) * 0.5 + 0.5) * (highlight ? 0.25 : 1);
 
   return (
     <div
