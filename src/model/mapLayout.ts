@@ -3,6 +3,7 @@
 // visible and how relations aggregate between them. Pure, so it is unit-tested.
 import { hierarchy, pack } from 'd3-hierarchy';
 import type { GraphModel } from './graphModel';
+import { MEMBER_KINDS, TYPE_KINDS } from './kinds';
 import { edgePasses, makeExcluded, type ViewState } from './graphView';
 
 export interface MapNode {
@@ -42,7 +43,10 @@ export function buildMapLayout(model: GraphModel, s: ViewState): MapLayout {
     if (!excluded(id)) {
       let child = false;
       for (const c of n.children) if (isIncluded(c)) child = true;
-      if (n.tier === 'entity') res = s.entityKinds.has(n.kind) || child;
+      // Members belong inside their type. Members whose type is not in the generation would otherwise
+      // hang loose around namespaces; they stay out of the map (search and tables still find them).
+      const orphanMember = MEMBER_KINDS.has(n.kind) && !TYPE_KINDS.has(model.nodes.get(n.parent ?? '')?.kind ?? '');
+      if (n.tier === 'entity') res = !orphanMember && (s.entityKinds.has(n.kind) || child);
       else if (n.kind === 'group' || n.kind === 'pkgnamespace') res = child;
       else res = true;
     }

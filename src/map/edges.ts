@@ -14,26 +14,30 @@ function chain(layout: MapLayout, id: string): string[] {
   return out;
 }
 
-/** Control points: source, its ancestors up to (not including) the LCA, the LCA, then down to the target. */
+/**
+ * Control points: the endpoints plus at most one ancestor on each side, below the lowest common ancestor.
+ * Routing through big ancestors (or the map centre) made long white fans across the map; one level of
+ * bundling keeps sibling groups together while lines stay short and direct.
+ */
 export function controlPoints(layout: MapLayout, a: string, b: string): Point[] {
   const ca = chain(layout, a);
   const cb = chain(layout, b);
   const inB = new Set(cb);
   const lcaIndex = ca.findIndex((id) => inB.has(id));
-  const up = lcaIndex < 0 ? ca : ca.slice(0, lcaIndex + 1);
-  const down = lcaIndex < 0 ? cb : cb.slice(0, cb.indexOf(ca[lcaIndex]));
-  const ids = [...up, ...down.reverse()];
-  const pts = ids.map((id) => {
+  const lca = lcaIndex < 0 ? null : ca[lcaIndex];
+  const pt = (id: string) => {
     const n = layout.nodes.get(id)!;
     return [n.x, n.y] as Point;
-  });
-  // Two roots share no ancestor: route through the map centre so long edges still arc gracefully.
-  if (lcaIndex < 0) pts.splice(up.length, 0, [0, 0]);
+  };
+  const pts: Point[] = [pt(a)];
+  if (ca[1] && ca[1] !== lca) pts.push(pt(ca[1]));
+  if (cb[1] && cb[1] !== lca) pts.push(pt(cb[1]));
+  pts.push(pt(b));
   return pts;
 }
 
 /** Uniform cubic B-spline through straightened control points, clamped to the endpoints. */
-export function bundle(points: Point[], beta = 0.85, perSegment = 6): Point[] {
+export function bundle(points: Point[], beta = 0.7, perSegment = 8): Point[] {
   const n = points.length;
   if (n <= 2) return points;
   const [x0, y0] = points[0];
@@ -82,7 +86,7 @@ export function createEdgeRouter(layout: MapLayout) {
     let path = cache.get(key);
     if (!path) {
       const cps = controlPoints(layout, a, b);
-      path = cps.length <= 3 ? arc(cps[0], cps[cps.length - 1]) : bundle(cps);
+      path = cps.length <= 2 ? arc(cps[0], cps[cps.length - 1]) : bundle(cps);
       cache.set(key, path);
     }
     return path;

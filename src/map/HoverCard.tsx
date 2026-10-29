@@ -17,7 +17,7 @@ function counts(model: GraphModel, id: string, dir: 'out' | 'in') {
 }
 
 /** Hover card on the map, shown after a short delay so it does not flicker while the pointer travels. */
-export function HoverCard({ hover, layout, model, open }: { hover: { x: number; y: number; node?: MapNode; edge?: MapEdge }; layout: MapLayout; model: GraphModel; open: boolean }) {
+export function HoverCard({ hover, layout, model, open, selected }: { hover: { x: number; y: number; node?: MapNode; edge?: MapEdge }; layout: MapLayout; model: GraphModel; open: boolean; selected: boolean }) {
   const [shown, setShown] = useState(false);
   const key = hover.node?.id ?? (hover.edge ? `${hover.edge.source}|${hover.edge.target}` : '');
   useEffect(() => {
@@ -77,9 +77,9 @@ export function HoverCard({ hover, layout, model, open }: { hover: { x: number; 
           {ins.length > 0 && <p>Used by: {ins.map(([k, c]) => `${kindLabel(k)} ${c}`).join(', ')}</p>}
         </div>
       )}
-      <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-sky-400">
+      <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-foreground">
         <MousePointerClick className="size-3.5" />
-        {open ? 'Click empty space to go up' : n.children.length ? 'Click to enter' : 'Click for details'}
+        {open ? 'Click empty space to go up' : !n.children.length ? 'Click for details' : selected ? 'Click again to go in' : 'Click to select · double-click to go in'}
       </p>
     </div>
   );

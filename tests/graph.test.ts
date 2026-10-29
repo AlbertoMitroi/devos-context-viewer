@@ -185,6 +185,14 @@ describe('map', () => {
     expect(layout.roots.sort()).toEqual(['group:packages', 'prj:app', 'prj:core', 'prj:tests']);
   });
 
+  it('keeps members inside their types, never loose in a namespace or project', () => {
+    for (const n of layout.nodes.values()) {
+      if (!['method', 'property', 'field', 'constructor'].includes(n.kind)) continue;
+      const parent = layout.nodes.get(n.parent!)!;
+      expect(['class', 'interface', 'record', 'struct', 'enum', 'type', 'delegate']).toContain(parent.kind);
+    }
+  });
+
   it('zoomed out shows only roots, with relations aggregated between them', () => {
     const f = computeFrame(model, layout, s, { scale: 1e-6, ...all });
     expect(f.open.size).toBe(0);
@@ -252,17 +260,20 @@ describe('edge bundling', () => {
   const s = state();
   const layout = buildMapLayout(model, s);
 
-  it('routes through the lowest common ancestor', () => {
+  it('bundles one level at most and never routes through the map centre', () => {
     const cps = controlPoints(layout, RUN, REPO_GET);
     const run = layout.nodes.get(RUN)!;
     const get = layout.nodes.get(REPO_GET)!;
     expect(cps[0]).toEqual([run.x, run.y]);
     expect(cps[cps.length - 1]).toEqual([get.x, get.y]);
-    // Different projects: no common ancestor, so the route passes the map centre between the two chains.
-    expect(cps.some(([x, y]) => x === 0 && y === 0)).toBe(true);
-    const sameProject = controlPoints(layout, REPO_GET, `${C}:M:Acme.Core.IRepo.Get`);
-    const ns = layout.nodes.get(`${C}:N:Acme.Core`)!;
-    expect(sameProject).toContainEqual([ns.x, ns.y]);
+    expect(cps.length).toBeLessThanOrEqual(4);
+    expect(cps.some(([x, y]) => x === 0 && y === 0)).toBe(false);
+    const runType = layout.nodes.get(run.parent!)!;
+    expect(cps).toContainEqual([runType.x, runType.y]);
+    // Siblings share their parent as LCA: a direct arc, no detour.
+    expect(controlPoints(layout, REPO, `${C}:T:Acme.Core.IRepo`)).toHaveLength(2);
+    // Cousins (members of sibling types) bend through their own types only.
+    expect(controlPoints(layout, REPO_GET, `${C}:M:Acme.Core.IRepo.Get`)).toHaveLength(4);
   });
 
   it('keeps the endpoints and caches paths', () => {

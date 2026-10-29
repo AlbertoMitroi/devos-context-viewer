@@ -146,7 +146,7 @@ export const useStore = create<State>((set, get) => ({
   fitTick: 0,
   edgeLabels: true,
   hoverHighlight: true,
-  mapEdges: 'all',
+  mapEdges: 'selection',
   selection: null,
   centerOn: null,
   searchQuery: '',
