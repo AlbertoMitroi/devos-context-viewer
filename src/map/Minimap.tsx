@@ -43,7 +43,7 @@ export function Minimap({ layout, colors, cam, size, onJump }: { layout: MapLayo
 
   return (
     <div
-      className="minimap panel"
+      className="absolute bottom-4 left-4 z-10 cursor-crosshair overflow-hidden rounded-lg border bg-background/80 shadow-lg backdrop-blur"
       style={{ width: SIZE, height: SIZE }}
       onPointerDown={(e) => {
         e.stopPropagation();
@@ -58,8 +58,8 @@ export function Minimap({ layout, colors, cam, size, onJump }: { layout: MapLayo
       role="img"
       aria-label="Minimap of all projects; click to move the view"
     >
-      <canvas ref={canvas} style={{ width: SIZE, height: SIZE }} />
-      {visible && <div className="minimap-view" style={{ left, top, width: Math.max(4, w), height: Math.max(4, h) }} />}
+      <canvas ref={canvas} className="block" style={{ width: SIZE, height: SIZE }} />
+      {visible && <div className="pointer-events-none absolute rounded-sm border-[1.5px] border-sky-300 bg-sky-300/10" style={{ left, top, width: Math.max(4, w), height: Math.max(4, h) }} />}
     </div>
   );
 }

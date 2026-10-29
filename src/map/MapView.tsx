@@ -14,7 +14,6 @@ import { KIND_GLYPH, kindColor, projectColor, type RGB } from '../theme/palette'
 import { Camera, prefersReducedMotion, wheelZoomDelta, type Cam } from './camera';
 import { OrbLayer, RegionLayer, ShadowLayer } from './OrbLayer';
 import { createEdgeRouter, pointAt, type Point } from './edges';
-import { Breadcrumbs } from './Breadcrumbs';
 import { Minimap } from './Minimap';
 import { HoverCard } from './HoverCard';
 import { MapControls } from './MapControls';
@@ -25,7 +24,7 @@ type RGBA = [number, number, number, number];
 const GROUP_KINDS = new Set(['project', 'package', 'group', 'namespace', 'pkgnamespace']);
 const VIEW = new OrthographicView({ id: 'map', flipY: true });
 const collision = new CollisionFilterExtension();
-const FONT = '"IBM Plex Sans", Inter, system-ui, sans-serif';
+const FONT = '"Inter Variable", Inter, system-ui, sans-serif';
 const ADDITIVE = { blend: true, blendColorOperation: 'add', blendColorSrcFactor: 'src-alpha', blendColorDstFactor: 'one', blendAlphaOperation: 'add', blendAlphaSrcFactor: 'one', blendAlphaDstFactor: 'one' } as const;
 
 function hexRgb(c: string): RGB {
@@ -70,7 +69,6 @@ export function MapView() {
   const fitTick = useStore((s) => s.fitTick);
   const set = useStore((s) => s.set);
   const navigate = useStore((s) => s.navigate);
-  const inspectorOpen = useStore((s) => s.inspectorOpen);
 
   const wrap = useRef<HTMLDivElement>(null);
   const deck = useRef<DeckGLRef>(null);
@@ -164,6 +162,14 @@ export function MapView() {
   );
 
   const crumbs = locate(layout, frame.open, cam.x, cam.y).filter((id) => (frame.openness.get(id) ?? 0) > 0.5);
+  const crumbKey = crumbs.join('|');
+  // Publish the layout and the current path for the header breadcrumb and the sidebar.
+  useEffect(() => {
+    set({ mapLayout: layout });
+  }, [layout, set]);
+  useEffect(() => {
+    set({ mapPath: crumbKey ? crumbKey.split('|') : [] });
+  }, [crumbKey, set]);
   const selectedId = selection?.type === 'node' ? selection.id : null;
   const selectedOnMap = useMemo(() => (selectedId ? layoutNodeFor(selectedId)?.id ?? null : null), [selectedId, layoutNodeFor]);
   const hoverId = hover?.node?.id ?? null;
@@ -420,7 +426,7 @@ export function MapView() {
       getColor: (h) => {
         const c = hexRgb(edgeColor(h.edge.kind));
         const dim = active.size > 0 && !active.has(h.edge.source) && !active.has(h.edge.target);
-        const base = dim ? 10 : active.size ? 0 : 52;
+        const base = dim ? 8 : active.size ? 0 : 30;
         return [...c, a8(base * (h.head ? 1 : 0.5) * edgeFade(h.edge))] as RGBA;
       },
       getWidth: (h) => Math.min(9, 1 + Math.log2(h.edge.count) * 1.1),
@@ -537,7 +543,7 @@ export function MapView() {
     } as never),
   ];
 
-  if (import.meta.env.DEV) (window as unknown as { __mapDebug: unknown }).__mapDebug = { deck, cam, size, frame, layers };
+  if (import.meta.env.DEV) (window as unknown as { __mapDebug: unknown }).__mapDebug = { deck, cam, size, frame };
   // Dot grid that moves and scales with the map, snapped to powers of two so it never jumps in density.
   const gridWorld = Math.pow(2, Math.ceil(Math.log2(26 / scale)));
   const step = gridWorld * scale;
@@ -547,7 +553,7 @@ export function MapView() {
 
   return (
     <div
-      className={`map-wrap ${inspectorOpen && selection ? 'with-drawer' : ''}`}
+      className="map-wrap relative h-full w-full touch-none select-none overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       ref={wrap}
       style={{ backgroundSize: `${step}px ${step}px`, backgroundPosition: `${ox}px ${oy}px`, ['--grid-alpha' as string]: gridAlpha }}
       onPointerDown={onPointerDown}
@@ -577,14 +583,11 @@ export function MapView() {
         />
       )}
       <div className="map-vignette" />
-      <Breadcrumbs layout={layout} path={crumbs} onPick={(id) => navigate(id)} />
       <Minimap layout={layout} colors={rootColor} cam={cam} size={size} onJump={(x, y) => camera.flyTo({ x, y, zoom: cam.zoom }, { maxDuration: 500 })} />
       <MapControls
         onZoomIn={() => camera.zoomAt(size.width / 2, size.height / 2, 1)}
         onZoomOut={() => camera.zoomAt(size.width / 2, size.height / 2, -1)}
         onFit={() => navigate(null, { select: false })}
-        infoOpen={inspectorOpen}
-        onToggleInfo={() => set({ inspectorOpen: !inspectorOpen })}
       />
       {hover && <HoverCard hover={hover} layout={layout} model={model} open={hover.node ? frame.open.has(hover.node.id) && crumbs.includes(hover.node.id) : false} />}
     </div>

@@ -46,17 +46,17 @@ export function ContextMenu({ target, onClose }: { target: MenuTarget; onClose: 
   items.push({ label: 'Only this project / package', run: () => st.isolateRoot(node.id) });
   items.push({ label: 'Copy id', run: () => navigator.clipboard?.writeText(node.id) });
   return (
-    <div className="ctx-menu" style={{ left: target.x, top: target.y }} onContextMenu={(e) => e.preventDefault()}>
-      <div className="ctx-title" title={node.fullName}>
+    <div className="absolute z-30 min-w-60 rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95" style={{ left: target.x, top: target.y }} onContextMenu={(e) => e.preventDefault()}>
+      <div className="max-w-80 truncate px-2 py-1.5 text-xs text-muted-foreground" title={node.fullName}>
         {node.kind} · {node.label}
       </div>
       {items.map((it, i) =>
         it === 'sep' ? (
-          <div key={i} className="ctx-sep" />
+          <div key={i} className="-mx-1 my-1 h-px bg-muted" />
         ) : (
-          <button key={i} className="ctx-item" onClick={act(it.run)}>
+          <button key={i} className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent focus-visible:bg-accent" onClick={act(it.run)}>
             <span>{it.label}</span>
-            {it.hint && <kbd>{it.hint}</kbd>}
+            {it.hint && <span className="text-xs tracking-widest text-muted-foreground">{it.hint}</span>}
           </button>
         ),
       )}

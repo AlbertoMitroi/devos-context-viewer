@@ -24,6 +24,8 @@ A consumer for the generations produced by [dotnet-intelligence](../dotnet-intel
 | `Enter` / `Backspace` | Go into the selection / go up |
 | `F` | Show all projects |
 | `I` | Toggle the details panel |
+| `L` | Layers and filters |
+| `?` | All keyboard shortcuts |
 | `⌘K` or `/` | Command palette: jump to any symbol, project or action |
 | Browser Back / Forward | Replay map navigation (every position is a deep link) |
 
@@ -55,7 +57,7 @@ Production build: `npm run build && npm start -- --port 4600`.
 
 - React + TypeScript + Vite.
 - Map: deck.gl (WebGL) with a d3-hierarchy circle-packing layout computed once per filter set; level of detail is decided per frame from the on-screen radius of each circle, with fade-in between levels. Own camera (smooth zoom to cursor, momentum, van Wijk fly-to via d3-interpolate) and shaded circle layers (custom fragment shader injection).
-- UI: design tokens in `src/theme/tokens.css`, OKLCH palette in `src/theme/palette.ts`, IBM Plex Sans and JetBrains Mono (self-hosted), Phosphor icons.
+- UI: shadcn/ui (new-york, zinc, dark) on Tailwind CSS 3, built on the shadcn sidebar + inset application layout: sidebar with generation switcher, views and projects; header with the map breadcrumb, ⌘K command menu, layers sheet and details toggle; resizable details panel. Components live in `src/components/ui` (generated with `npx shadcn@2.3.0 add`). Inter and JetBrains Mono, lucide icons. The map palette is OKLCH (`src/theme/palette.ts`).
 - Neighbourhood graph: Cytoscape.js with fCoSE and ELK layouts.
 - Parsing runs in a Web Worker; evidence and snippets stay there and are fetched on demand.
 

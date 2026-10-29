@@ -6,6 +6,7 @@ import { STRUCTURAL_KINDS } from './model/kinds';
 import { fetchServerGenerations, localSources, serverSource, type DataSource } from './model/source';
 import type { Evidence, GenerationData, GenerationInfo } from './model/types';
 import type { WorkerRequest, WorkerResponse } from './model/load.worker';
+import type { MapLayout } from './model/mapLayout';
 
 export type Tab = 'map' | 'graph' | 'tables' | 'overview' | 'docs';
 export type MapEdges = 'all' | 'selection' | 'none';
@@ -47,6 +48,10 @@ interface State extends ViewState {
   inspectorOpen: boolean;
   layersOpen: boolean;
   paletteOpen: boolean;
+  shortcutsOpen: boolean;
+  /** Published by the map so the header breadcrumb can show where the view is. */
+  mapLayout: MapLayout | null;
+  mapPath: string[];
   /** Navigate the map to a node (or to everything with null): select it, fly there, record history. */
   navigate(id: string | null, opts?: { push?: boolean; select?: boolean }): void;
 
@@ -156,6 +161,9 @@ export const useStore = create<State>((set, get) => ({
   inspectorOpen: true,
   layersOpen: false,
   paletteOpen: false,
+  shortcutsOpen: false,
+  mapLayout: null,
+  mapPath: [],
 
   navigate(id, opts = {}) {
     const push = opts.push ?? true;

@@ -282,10 +282,10 @@ export function GraphCanvas({ view }: { view: ViewResult | null }) {
   }, [hoverHighlight]);
 
   return (
-    <div className="graph-wrap">
-      <div ref={container} className="graph" />
+    <div className="relative min-h-0 flex-1">
+      <div ref={container} className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,hsl(240_6%_8%),hsl(240_10%_3.9%))]" />
       {tooltip && (
-        <div className="tooltip" style={{ left: tooltip.x + 14, top: tooltip.y + 14 }}>
+        <div className="pointer-events-none absolute z-20 max-w-lg rounded-md border bg-popover/95 px-2 py-1 font-mono text-[11px] text-popover-foreground shadow-md [overflow-wrap:anywhere]" style={{ left: tooltip.x + 14, top: tooltip.y + 14 }}>
           {tooltip.text}
         </div>
       )}

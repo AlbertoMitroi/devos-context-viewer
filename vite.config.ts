@@ -17,7 +17,7 @@ export default defineConfig({
       },
     },
   ],
-  resolve: { alias: { 'web-worker': fileURLToPath(new URL('./src/shims/web-worker.ts', import.meta.url)) } },
+  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)), 'web-worker': fileURLToPath(new URL('./src/shims/web-worker.ts', import.meta.url)) } },
   optimizeDeps: { include: ['cytoscape', 'cytoscape-fcose', 'cytoscape-elk', 'cytoscape-svg', 'marked', 'react', 'react-dom/client', 'zustand', 'zustand/react/shallow', '@tanstack/react-virtual', '@deck.gl/core', '@deck.gl/layers', '@deck.gl/react', '@deck.gl/extensions', 'd3-hierarchy'] },
   worker: { format: 'es' },
 });
