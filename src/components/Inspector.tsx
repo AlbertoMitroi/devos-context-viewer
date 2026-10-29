@@ -1,4 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import { Crosshair, EyeSlash, Graph, X } from '@phosphor-icons/react';
+import { KIND_GLYPH } from '../theme/palette';
 import { ancestors, type Edge, type GraphModel, type HNode } from '../model/graphModel';
 import { edgeColor, kindLabel, nodeColor } from '../model/kinds';
 import { useStore } from '../store';
@@ -129,6 +131,7 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
   const data = st.data!;
   const decls = model.declarationsByEntity.get(node.id) ?? [];
   const [openDecl, setOpenDecl] = useState<string | null>(null);
+  const [tab, setTab] = useState<'overview' | 'relations' | 'source' | 'raw'>('overview');
   const crumbs = ancestors(model, node.id).reverse();
   const childKinds = useMemo(() => {
     const m = new Map<string, number>();
@@ -149,7 +152,9 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
   return (
     <div className="inspector-body">
       <div className="insp-head">
-        <span className="dot big" style={{ background: nodeColor(node.kind) }} />
+        <span className="glyph big" data-kind={node.kind}>
+          {KIND_GLYPH[node.kind] ?? '·'}
+        </span>
         <div>
           <div className="insp-title">{node.label}</div>
           <div className="muted small">
@@ -176,20 +181,53 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
         </button>
       </div>
       <div className="actions">
-        <button onClick={() => st.setFocus({ ids: [node.id], depth: 2, direction: 'both', label: node.label })}>Focus</button>
-        <button onClick={() => st.setFocus({ ids: [node.id], depth: 2, direction: 'in', label: `← ${node.label}` })}>← Incoming</button>
-        <button onClick={() => st.setFocus({ ids: [node.id], depth: 2, direction: 'out', label: `${node.label} →` })}>Outgoing →</button>
-        {node.children.length > 0 && <button onClick={() => st.toggleExpanded(node.id)}>{expanded ? 'Collapse' : 'Expand'}</button>}
-        <button onClick={() => st.set({ pathStart: node.id })}>Path from here</button>
-        <button onClick={() => st.hide(node.id)}>Hide</button>
+        <button className="btn primary" onClick={() => st.navigate(node.id)}>
+          <Crosshair size={14} aria-hidden /> Show on map
+        </button>
+        <button className="btn" onClick={() => st.setFocus({ ids: [node.id], depth: 2, direction: 'both', label: node.label })}>
+          <Graph size={14} aria-hidden /> Neighbourhood
+        </button>
+        <button className="btn" onClick={() => st.setFocus({ ids: [node.id], depth: 3, direction: 'in', kinds: ['calls_declared_target', 'possible_runtime_target'], label: `callers of ${node.label}` })}>
+          Callers
+        </button>
+        <button className="btn" onClick={() => st.setFocus({ ids: [node.id], depth: 3, direction: 'out', kinds: ['calls_declared_target', 'possible_runtime_target'], label: `called by ${node.label}` })}>
+          Callees
+        </button>
+        {st.tab === 'graph' && node.children.length > 0 && (
+          <button className="btn" onClick={() => st.toggleExpanded(node.id)}>
+            {expanded ? 'Collapse' : 'Expand'}
+          </button>
+        )}
+        <button className="btn ghost" onClick={() => st.hide(node.id)} title="Hide from map and graph">
+          <EyeSlash size={14} aria-hidden /> Hide
+        </button>
+      </div>
+      <div className="insp-tabs" role="tablist">
+        {(
+          [
+            ['overview', 'Overview'],
+            ['relations', `Relations ${(model.out.get(node.id)?.length ?? 0) + (model.in.get(node.id)?.length ?? 0)}`],
+            ['source', `Source ${decls.length}`],
+            ['raw', 'Raw'],
+          ] as const
+        ).map(([id, label]) => (
+          <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>
+            {label}
+          </button>
+        ))}
       </div>
 
-      {node.entity && (
-        <Block title="Fields">
-          <Fields rec={node.entity} skip={['id']} />
+      {tab === 'raw' && (
+        <Block title={node.entity ? 'Entity record' : 'Record'}>
+          <Fields rec={node.entity ?? node.record ?? { id: node.id, kind: node.kind }} />
         </Block>
       )}
-      {project && (
+      {tab === 'overview' && node.entity && (
+        <Block title="Summary">
+          <Fields rec={Object.fromEntries(Object.entries(node.entity).filter(([k]) => ['kind', 'accessibility', 'modifiers', 'origin', 'project', 'assembly', 'namespace'].includes(k)))} />
+        </Block>
+      )}
+      {tab === 'overview' && project && (
         <>
           <Block title="Project">
             <Fields rec={project} skip={['packages', 'projectReferences', 'id']} />
@@ -229,7 +267,7 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
           )}
         </>
       )}
-      {diags.length > 0 && (
+      {tab === 'overview' && diags.length > 0 && (
         <Block title="Diagnostics" count={diags.length}>
           {diags.map((d) => (
             <div key={d.id} className={`diag sev-${d.severity}`}>
@@ -239,20 +277,18 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
           ))}
         </Block>
       )}
-      {decls.length > 0 && (
-        <Block title="Declarations" count={decls.length}>
-          {decls.map((d) => (
-            <div key={d.id} className="decl">
-              <button className="link mono" onClick={() => setOpenDecl(openDecl === d.id ? null : d.id)}>
-                {d.path}:{d.span?.startLine}
-              </button>
-              {d.generator && <span className="badge">gen: {d.generator}</span>}
-              {openDecl === d.id && <SourceContext path={d.path} store={d.store} span={d.extent ?? d.span} radius={2} />}
-            </div>
-          ))}
-        </Block>
-      )}
-      {childKinds.length > 0 && (
+      {tab === 'source' && decls.length === 0 && <div className="empty-note">No declarations in this generation (metadata or group).</div>}
+      {tab === 'source' &&
+        decls.map((d, i) => (
+          <div key={d.id} className="decl">
+            <button className="link mono" onClick={() => setOpenDecl(openDecl === d.id ? null : d.id)}>
+              {d.path}:{d.span?.startLine}
+            </button>
+            {d.generator && <span className="badge">gen: {d.generator}</span>}
+            {(openDecl === d.id || (openDecl === null && i === 0)) && <SourceContext path={d.path} store={d.store} span={d.extent ?? d.span} radius={2} />}
+          </div>
+        ))}
+      {tab === 'overview' && childKinds.length > 0 && (
         <Block title="Contains" count={node.children.length} open={false}>
           {childKinds.map(([k, c]) => (
             <div key={k} className="small">
@@ -266,12 +302,16 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
           </div>
         </Block>
       )}
-      <Block title="Outgoing relations" count={model.out.get(node.id)?.length ?? 0}>
-        <RelationGroups node={node} model={model} dir="out" />
-      </Block>
-      <Block title="Incoming relations" count={model.in.get(node.id)?.length ?? 0}>
-        <RelationGroups node={node} model={model} dir="in" />
-      </Block>
+      {tab === 'relations' && (
+        <>
+          <Block title="Uses (outgoing)" count={model.out.get(node.id)?.length ?? 0}>
+            <RelationGroups node={node} model={model} dir="out" />
+          </Block>
+          <Block title="Used by (incoming)" count={model.in.get(node.id)?.length ?? 0}>
+            <RelationGroups node={node} model={model} dir="in" />
+          </Block>
+        </>
+      )}
     </div>
   );
 }
@@ -340,19 +380,21 @@ function EdgeInspector({ sel, model }: { sel: { edgeIdx: number[]; source: strin
 export function Inspector() {
   const selection = useStore((s) => s.selection);
   const model = useStore((s) => s.model);
-  if (!model) return null;
-  if (!selection)
-    return (
-      <div className="inspector-body muted small">
-        <p>Select a node or an edge.</p>
-        <ul className="help">
-          <li>Map: scroll to zoom, double-click a circle to fly into it</li>
-          <li>Neighbourhood: double-click expands, right-click for callers, paths, hide</li>
-          <li>/ search · F focus · H hide · Z fit · M map · Esc deselect</li>
-        </ul>
+  const open = useStore((s) => s.inspectorOpen);
+  const set = useStore((s) => s.set);
+  if (!model || !selection || !open) return null;
+  const node = selection.type === 'node' ? model.nodes.get(selection.id) : null;
+  return (
+    <aside className="drawer panel" aria-label="Inspector" onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
+      <header className="drawer-head">
+        <span className="drawer-title">{selection.type === 'edge' ? 'Relations' : 'Symbol'}</span>
+        <button className="icon-btn" onClick={() => set({ inspectorOpen: false })} aria-label="Close inspector" title="Close (Esc)">
+          <X size={16} />
+        </button>
+      </header>
+      <div className="drawer-body">
+        {selection.type === 'edge' ? <EdgeInspector key={selection.id} sel={selection} model={model} /> : node ? <NodeInspector key={node.id} node={node} model={model} /> : null}
       </div>
-    );
-  if (selection.type === 'edge') return <EdgeInspector key={selection.id} sel={selection} model={model} />;
-  const node = model.nodes.get(selection.id);
-  return node ? <NodeInspector key={node.id} node={node} model={model} /> : null;
+    </aside>
+  );
 }

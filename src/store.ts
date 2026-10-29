@@ -44,6 +44,11 @@ interface State extends ViewState {
   tableTab: string;
   tableFilter: string;
   docPath: string | null;
+  inspectorOpen: boolean;
+  layersOpen: boolean;
+  paletteOpen: boolean;
+  /** Navigate the map to a node (or to everything with null): select it, fly there, record history. */
+  navigate(id: string | null, opts?: { push?: boolean; select?: boolean }): void;
 
   refreshGenerations(): Promise<void>;
   addLocalFolder(files: FileList): Promise<void>;
@@ -92,13 +97,19 @@ function defaultView(model: GraphModel): ViewState {
   };
 }
 
-function writeHash(id: string | null, sel?: string | null) {
+function writeHash(id: string | null, sel?: string | null, push = false) {
   const p = new URLSearchParams();
   if (id) p.set('g', id);
   if (sel) p.set('n', sel);
   const h = p.toString();
-  if (location.hash.slice(1) !== h) history.replaceState(null, '', h ? `#${h}` : location.pathname);
+  if (location.hash.slice(1) === h) return;
+  // Navigations push, so the browser's Back and Forward fly the map back; selection changes replace.
+  if (push) history.pushState(null, '', h ? `#${h}` : location.pathname);
+  else history.replaceState(null, '', h ? `#${h}` : location.pathname);
 }
+
+/** centerOn value that asks the map to show everything. */
+export const ROOT = '__root';
 
 export const useStore = create<State>((set, get) => ({
   ...({} as ViewState),
@@ -142,6 +153,24 @@ export const useStore = create<State>((set, get) => ({
   tableTab: 'entities',
   tableFilter: '',
   docPath: null,
+  inspectorOpen: true,
+  layersOpen: false,
+  paletteOpen: false,
+
+  navigate(id, opts = {}) {
+    const push = opts.push ?? true;
+    const select = opts.select ?? true;
+    if (!id) {
+      set({ centerOn: ROOT, ...(select ? { selection: null } : {}) });
+      writeHash(get().activeId, null, push);
+      return;
+    }
+    const model = get().model;
+    const real = model?.nodes.has(id) ? id : model?.alias.get(id);
+    if (!real) return;
+    set({ centerOn: real, ...(select ? { selection: { type: 'node' as const, id: real } } : {}) });
+    writeHash(get().activeId, real, push);
+  },
 
   async refreshGenerations() {
     const server = await fetchServerGenerations();
@@ -306,6 +335,7 @@ export const useStore = create<State>((set, get) => ({
       patch.disabledRoots = roots;
     }
     if (n.isTest && get().hideTests) patch.hideTests = false;
+    writeHash(get().activeId, real, true);
     get().set(patch);
   },
 

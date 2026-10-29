@@ -167,7 +167,9 @@ describe('search and evidence', () => {
   });
 });
 
-import { buildMapLayout, computeFrame, locate, OPEN_PX } from '../src/model/mapLayout';
+import { buildMapLayout, computeFrame, locate, nearestSibling, OPEN_PX, OPEN_START_PX } from '../src/model/mapLayout';
+import { bundle, controlPoints, createEdgeRouter } from '../src/map/edges';
+import { contrast, kindColor, projectColor } from '../src/theme/palette';
 
 describe('map', () => {
   const s = state();
@@ -197,10 +199,38 @@ describe('map', () => {
     expect(f.edges.some((e) => [e.source, e.target].includes(RUN) && [e.source, e.target].includes(REPO_GET))).toBe(true);
   });
 
-  it('opens a circle exactly when its radius on screen reaches the threshold', () => {
+  it('starts opening at OPEN_START_PX and fades children in until OPEN_PX', () => {
     const core = layout.nodes.get('prj:core')!;
-    expect(computeFrame(model, layout, s, { scale: (OPEN_PX - 1) / core.r, ...all }).open.has('prj:core')).toBe(false);
-    expect(computeFrame(model, layout, s, { scale: (OPEN_PX * (1 + 1e-9)) / core.r, ...all }).open.has('prj:core')).toBe(true);
+    const child = core.children[0];
+    expect(computeFrame(model, layout, s, { scale: (OPEN_START_PX - 1) / core.r, ...all }).open.has('prj:core')).toBe(false);
+    const mid = computeFrame(model, layout, s, { scale: ((OPEN_START_PX + OPEN_PX) / 2) / core.r, ...all });
+    expect(mid.open.has('prj:core')).toBe(true);
+    expect(mid.openness.get('prj:core')).toBeCloseTo(0.5, 5);
+    expect(mid.fade.get(child)).toBeCloseTo(0.5, 5);
+    const full = computeFrame(model, layout, s, { scale: (OPEN_PX * (1 + 1e-9)) / core.r, ...all });
+    expect(full.openness.get('prj:core')).toBe(1);
+    expect(full.fade.get(child)).toBe(1);
+  });
+
+  it('records relation direction on aggregated edges', () => {
+    const f = computeFrame(model, layout, s, { scale: 1e-6, ...all });
+    const appCore = f.edges.find((e) => [e.source, e.target].sort().join() === 'prj:app,prj:core')!;
+    expect(appCore.source).toBe('prj:app');
+    expect(appCore.back).toBe(0);
+  });
+
+  it('finds the nearest sibling in each direction', () => {
+    for (const id of layout.roots) {
+      for (const dir of ['left', 'right', 'up', 'down'] as const) {
+        const next = nearestSibling(layout, id, dir);
+        if (!next) continue;
+        const a = layout.nodes.get(id)!;
+        const b = layout.nodes.get(next)!;
+        const d = dir === 'left' ? a.x - b.x : dir === 'right' ? b.x - a.x : dir === 'up' ? a.y - b.y : b.y - a.y;
+        expect(d).toBeGreaterThan(0);
+        expect(layout.nodes.get(next)!.parent).toBe(a.parent);
+      }
+    }
   });
 
   it('origin filter removes packages from the map and their relations', () => {
@@ -215,5 +245,54 @@ describe('map', () => {
     const core = layout.nodes.get('prj:core')!;
     const f = computeFrame(model, layout, s, { scale: (OPEN_PX * (1 + 1e-9)) / core.r, ...all });
     expect(locate(layout, f.open, core.x, core.y)[0]).toBe('prj:core');
+  });
+});
+
+describe('edge bundling', () => {
+  const s = state();
+  const layout = buildMapLayout(model, s);
+
+  it('routes through the lowest common ancestor', () => {
+    const cps = controlPoints(layout, RUN, REPO_GET);
+    const run = layout.nodes.get(RUN)!;
+    const get = layout.nodes.get(REPO_GET)!;
+    expect(cps[0]).toEqual([run.x, run.y]);
+    expect(cps[cps.length - 1]).toEqual([get.x, get.y]);
+    // Different projects: no common ancestor, so the route passes the map centre between the two chains.
+    expect(cps.some(([x, y]) => x === 0 && y === 0)).toBe(true);
+    const sameProject = controlPoints(layout, REPO_GET, `${C}:M:Acme.Core.IRepo.Get`);
+    const ns = layout.nodes.get(`${C}:N:Acme.Core`)!;
+    expect(sameProject).toContainEqual([ns.x, ns.y]);
+  });
+
+  it('keeps the endpoints and caches paths', () => {
+    const pts: [number, number][] = [[0, 0], [10, 0], [10, 10], [20, 10]];
+    const b = bundle(pts);
+    expect(b[0]).toEqual([0, 0]);
+    expect(b[b.length - 1]).toEqual([20, 10]);
+    const route = createEdgeRouter(layout);
+    expect(route(RUN, REPO_GET)).toBe(route(RUN, REPO_GET));
+  });
+});
+
+describe('palette', () => {
+  it('keeps light label text readable on every project and kind colour with the label halo', () => {
+    const halo: [number, number, number] = [8, 12, 22];
+    const text: [number, number, number] = [244, 247, 252];
+    expect(contrast(text, halo)).toBeGreaterThan(4.5);
+    for (let i = 0; i < 40; i++) expect(contrast(projectColor(i), halo)).toBeGreaterThan(3);
+    for (const k of ['class', 'interface', 'method', 'property', 'field', 'enum']) expect(contrast(kindColor(k), halo)).toBeGreaterThan(3);
+  });
+});
+
+import { fitLabel } from '../src/map/labels';
+
+describe('map labels', () => {
+  it('splits long identifiers at camelCase boundaries before truncating', () => {
+    expect(fitLabel('Orders', 10, true)).toBe('Orders');
+    const two = fitLabel('BeginTransactionAsync', 12, true).split('\n');
+    expect(two).toHaveLength(2);
+    expect(two.every((l) => l.length <= 12)).toBe(true);
+    expect(fitLabel('BeginTransactionAsync', 12, false)).toBe('BeginTransa…');
   });
 });

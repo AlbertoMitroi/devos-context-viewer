@@ -106,22 +106,32 @@ export interface MapEdge {
   kind: string;
   weakest: string;
   edgeIdx: number[];
+  /** Relations running target to source; the rest run source to target. */
+  back: number;
 }
 
 export interface MapFrame {
   /** Nodes to draw (visible and inside the viewport), parents first. */
   drawn: MapNode[];
   open: Set<string>;
+  /** How far each open circle is into its opening transition, 0 to 1. Children fade in with it. */
+  openness: Map<string, number>;
+  /** Opacity of each visible node: 1 for roots, the parent's openness for children. */
+  fade: Map<string, number>;
   edges: MapEdge[];
 }
 
-/** A circle opens (shows its children) once it is this many pixels in radius on screen. */
+/** A circle is fully open (children at full opacity) at this radius on screen, in pixels. */
 export const OPEN_PX = 240;
+/** Children start fading in at this radius, so opening never pops. */
+export const OPEN_START_PX = OPEN_PX * 0.75;
 
 const RESOLUTION_RANK: Record<string, number> = { exact: 0, ambiguous: 1, candidate: 2, unresolved: 3 };
 
 export function computeFrame(model: GraphModel, layout: MapLayout, s: ViewState, vp: Viewport, maxEdgeIdx = 2000): MapFrame {
   const open = new Set<string>();
+  const openness = new Map<string, number>();
+  const fade = new Map<string, number>();
   const visible = new Set<string>();
   const drawn: MapNode[] = [];
   const inView = (n: MapNode) => n.x + n.r >= vp.minX && n.x - n.r <= vp.maxX && n.y + n.r >= vp.minY && n.y - n.r <= vp.maxY;
@@ -130,10 +140,16 @@ export function computeFrame(model: GraphModel, layout: MapLayout, s: ViewState,
     const id = stack.pop()!;
     const n = layout.nodes.get(id)!;
     visible.add(id);
+    if (!fade.has(id)) fade.set(id, 1);
     const shown = inView(n);
     if (shown) drawn.push(n);
-    if (n.children.length && n.r * vp.scale >= OPEN_PX) {
+    const px = n.r * vp.scale;
+    if (n.children.length && px >= OPEN_START_PX) {
       open.add(id);
+      const t = Math.min(1, (px - OPEN_START_PX) / (OPEN_PX - OPEN_START_PX));
+      openness.set(id, t);
+      const childFade = t * (fade.get(id) ?? 1);
+      for (const c of n.children) fade.set(c, childFade);
       // Children of an off-screen parent are still visible for edge routing, but not drawn.
       for (const c of n.children) stack.push(c);
     }
@@ -174,9 +190,10 @@ export function computeFrame(model: GraphModel, layout: MapLayout, s: ViewState,
     const key = a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`;
     let v = agg.get(key);
     if (!v) {
-      v = { source: a, target: b, count: 0, kinds: {}, kind: e.kind, weakest: e.resolution, edgeIdx: [] };
+      v = { source: a, target: b, count: 0, kinds: {}, kind: e.kind, weakest: e.resolution, edgeIdx: [], back: 0 };
       agg.set(key, v);
     }
+    if (a !== v.source) v.back++;
     v.count++;
     v.kinds[e.kind] = (v.kinds[e.kind] ?? 0) + 1;
     if ((RESOLUTION_RANK[e.resolution] ?? 4) > (RESOLUTION_RANK[v.weakest] ?? 4)) v.weakest = e.resolution;
@@ -184,8 +201,8 @@ export function computeFrame(model: GraphModel, layout: MapLayout, s: ViewState,
   }
   const edges = [...agg.values()];
   for (const v of edges) v.kind = Object.entries(v.kinds).sort((x, y) => y[1] - x[1])[0][0];
-  if (s.minWeight > 1) return { drawn, open, edges: edges.filter((v) => v.count >= s.minWeight) };
-  return { drawn, open, edges };
+  if (s.minWeight > 1) return { drawn, open, openness, fade, edges: edges.filter((v) => v.count >= s.minWeight) };
+  return { drawn, open, openness, fade, edges };
 }
 
 /** Zoom (log2 scale) at which a node fills about `fraction` of the smaller viewport side. */
@@ -206,4 +223,33 @@ export function locate(layout: MapLayout, open: Set<string>, x: number, y: numbe
     path.push(hit);
     level = layout.nodes.get(hit)!.children;
   }
+}
+
+export type Direction = 'left' | 'right' | 'up' | 'down';
+
+/** Nearest sibling of a node in a screen direction (y grows downwards), for arrow-key navigation. */
+export function nearestSibling(layout: MapLayout, id: string, dir: Direction): string | null {
+  const n = layout.nodes.get(id);
+  if (!n) return null;
+  const siblings = n.parent ? layout.nodes.get(n.parent)!.children : layout.roots;
+  const [ux, uy] = dir === 'left' ? [-1, 0] : dir === 'right' ? [1, 0] : dir === 'up' ? [0, -1] : [0, 1];
+  let best: string | null = null;
+  let bestScore = Infinity;
+  for (const sid of siblings) {
+    if (sid === id) continue;
+    const m = layout.nodes.get(sid)!;
+    const dx = m.x - n.x;
+    const dy = m.y - n.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist === 0) continue;
+    const along = (dx * ux + dy * uy) / dist;
+    if (along < 0.35) continue;
+    // Prefer siblings straight ahead: distance grows with the angle off the requested direction.
+    const score = dist * (1 + 2 * (1 - along));
+    if (score < bestScore) {
+      bestScore = score;
+      best = sid;
+    }
+  }
+  return best;
 }

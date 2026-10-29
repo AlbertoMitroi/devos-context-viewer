@@ -12,6 +12,23 @@ A consumer for the generations produced by [dotnet-intelligence](../dotnet-intel
 | **Summary** | Manifest, coverage per project, counts, run stages, diagnostics, contract warnings (unknown capabilities or kinds, dangling ids). |
 | **Context & wiki** | The generation's Markdown context packs and wiki, with Mermaid diagrams. |
 
+### Map navigation
+
+| Input | Action |
+|---|---|
+| Scroll / pinch | Zoom towards the cursor |
+| Drag | Pan, with momentum |
+| Click a circle | Fly into it and select it |
+| Click empty space inside the circle you are in | Go up to the nearest larger ancestor |
+| `←` `→` `↑` `↓` | Move to the nearest sibling in that direction |
+| `Enter` / `Backspace` | Go into the selection / go up |
+| `F` | Show all projects |
+| `I` | Toggle the details panel |
+| `⌘K` or `/` | Command palette: jump to any symbol, project or action |
+| Browser Back / Forward | Replay map navigation (every position is a deep link) |
+
+Edges are bundled along the containment hierarchy (Holten), drawn faintly above the map and highlighted, with flowing direction particles, for the hovered or selected circle. The breadcrumb at the top shows where you are; each segment has a menu of its siblings.
+
 The inspector shows every field of the selected symbol (unknown fields and `ext.*` included), its declarations with source, and its incoming and outgoing relations with evidence and snippets.
 
 ## Run
@@ -37,7 +54,8 @@ Production build: `npm run build && npm start -- --port 4600`.
 ## Stack
 
 - React + TypeScript + Vite.
-- Map: deck.gl (WebGL, map-style pan and zoom) with a d3-hierarchy circle-packing layout computed once per filter set; level of detail is decided per frame from the on-screen radius of each circle.
+- Map: deck.gl (WebGL) with a d3-hierarchy circle-packing layout computed once per filter set; level of detail is decided per frame from the on-screen radius of each circle, with fade-in between levels. Own camera (smooth zoom to cursor, momentum, van Wijk fly-to via d3-interpolate) and shaded circle layers (custom fragment shader injection).
+- UI: design tokens in `src/theme/tokens.css`, OKLCH palette in `src/theme/palette.ts`, IBM Plex Sans and JetBrains Mono (self-hosted), Phosphor icons.
 - Neighbourhood graph: Cytoscape.js with fCoSE and ELK layouts.
 - Parsing runs in a Web Worker; evidence and snippets stay there and are fetched on demand.
 

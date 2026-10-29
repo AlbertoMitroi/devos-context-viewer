@@ -1,0 +1,90 @@
+/* Design tokens. Components use these variables only, never raw colours or sizes. */
+:root {
+  color-scheme: dark;
+
+  /* Surfaces, darkest to lightest */
+  --bg: #0b1020;
+  --bg-deep: #070b17;
+  --surface-1: #10172a;
+  --surface-2: #151d33;
+  --surface-3: #1c2640;
+  --surface-glass: rgba(16, 23, 42, 0.78);
+  --border: #26324d;
+  --border-strong: #34446a;
+
+  /* Text (contrast on --surface-1: text 14.8:1, muted 6.1:1, faint 4.6:1) */
+  --text: #e8edf7;
+  --text-muted: #9aa8c3;
+  --text-faint: #8190ad;
+
+  /* Accent and states */
+  --accent: #7c9cff;
+  --accent-soft: rgba(124, 156, 255, 0.16);
+  --accent-strong: #a9bcff;
+  --focus: #a9bcff;
+  --success: #4fd1a5;
+  --warning: #f5b84b;
+  --danger: #f2738c;
+  --info: #6cc3f5;
+
+  /* Kind glyph colours (match theme/palette.ts kindColor) */
+  --k-namespace: #8fa2e0;
+  --k-class: #7ea7f5;
+  --k-record: #5fc0e8;
+  --k-struct: #4fcfd2;
+  --k-interface: #57d0b0;
+  --k-enum: #e3b35a;
+  --k-delegate: #e58bbd;
+  --k-method: #c19af2;
+  --k-property: #8fd07f;
+  --k-field: #eea06b;
+  --k-event: #f08a85;
+  --k-project: #a9bcff;
+
+  /* Type */
+  --font-sans: 'IBM Plex Sans', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 15px;
+  --fs-xl: 18px;
+
+  /* Space (4 point scale) */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+
+  /* Radius */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-pill: 999px;
+
+  /* Elevation */
+  --e-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --e-2: 0 8px 24px rgba(2, 6, 20, 0.45), 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+  --e-3: 0 24px 64px rgba(2, 6, 20, 0.6), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+
+  /* Motion */
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Layers */
+  --z-map-ui: 10;
+  --z-panel: 20;
+  --z-pop: 40;
+  --z-modal: 100;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+  }
+}
