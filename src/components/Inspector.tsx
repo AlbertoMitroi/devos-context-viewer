@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { ArrowLeftRight, ChevronRight, Copy, Crosshair, EyeOff, GitFork, MoreHorizontal, Network, PhoneIncoming, PhoneOutgoing, Route, X } from 'lucide-react';
+import { ArrowLeftRight, ChevronRight, Crosshair, EyeOff, GitFork, MoreHorizontal, Network, PhoneIncoming, PhoneOutgoing, Route, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -12,43 +12,17 @@ import { KindGlyph } from '@/components/kind-glyph';
 import { ancestors, type Edge, type GraphModel, type HNode } from '@/model/graphModel';
 import { edgeColor, kindLabel } from '@/model/kinds';
 import { useStore } from '@/store';
-import type { Json } from '@/model/types';
 import { EvidenceList, SourceContext } from './Evidence';
+import { CopyButton, KeyValue } from './blocks';
 
 const CALLS = ['calls_declared_target', 'possible_runtime_target'];
 
-function Value({ v }: { v: unknown }) {
-  if (v === null || v === undefined) return <span className="text-muted-foreground">null</span>;
-  if (Array.isArray(v)) {
-    if (!v.length) return <span className="text-muted-foreground">[]</span>;
-    if (v.every((x) => typeof x !== 'object')) return <span>{v.join(', ')}</span>;
-    return <pre className="whitespace-pre-wrap font-mono text-[11px]">{JSON.stringify(v, null, 1)}</pre>;
-  }
-  if (typeof v === 'object') return <pre className="whitespace-pre-wrap font-mono text-[11px]">{JSON.stringify(v, null, 1)}</pre>;
-  return <span>{String(v)}</span>;
-}
-
-/** Key/value list of a record; unknown fields and ext.* are shown as they are. */
-export function Fields({ rec, skip = [] }: { rec: Json; skip?: string[] }) {
-  return (
-    <dl className="grid grid-cols-[minmax(96px,auto)_1fr] gap-x-4 gap-y-1.5 text-sm">
-      {Object.entries(rec)
-        .filter(([k]) => !skip.includes(k))
-        .map(([k, v]) => (
-          <div key={k} className="contents">
-            <dt className={`truncate text-muted-foreground ${k.startsWith('ext.') ? 'text-violet-300' : ''}`}>{k}</dt>
-            <dd className="min-w-0 [overflow-wrap:anywhere]">
-              <Value v={v} />
-            </dd>
-          </div>
-        ))}
-    </dl>
-  );
-}
+/** Kept for callers that still import Fields; the design system block is KeyValue. */
+export const Fields = KeyValue;
 
 function SectionTitle({ children, count }: { children: ReactNode; count?: number }) {
   return (
-    <h3 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+    <h3 className="mb-2.5 flex items-center gap-2 text-2xs font-medium uppercase tracking-[0.08em] text-subtle-foreground">
       {children}
       {count !== undefined && (
         <Badge variant="secondary" className="h-5 px-1.5 font-mono text-[10px]">
@@ -173,7 +147,7 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
 
   return (
     <div className="flex flex-col gap-4 p-4">
-      <div className="flex items-start gap-3">
+      <div className="sticky top-0 z-10 -mx-4 -mt-4 flex items-start gap-3 border-b border-border-subtle bg-background/95 px-4 py-3 backdrop-blur">
         <KindGlyph kind={node.kind} size="lg" />
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-semibold leading-tight [overflow-wrap:anywhere]">{node.label}</h2>
@@ -198,18 +172,11 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
         </nav>
       )}
 
-      <div className="flex items-center gap-1 rounded-md border bg-muted/30 px-2 py-1.5">
-        <code className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground" title={node.id}>
+      <div className="flex items-center gap-1 rounded-md border border-border-subtle bg-surface-1 px-2 py-1">
+        <code className="min-w-0 flex-1 truncate font-mono text-2xs text-subtle-foreground" title={node.id}>
           {node.id}
         </code>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-6" onClick={() => navigator.clipboard?.writeText(node.id)} aria-label="Copy id">
-              <Copy className="size-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Copy id</TooltipContent>
-        </Tooltip>
+        <CopyButton text={node.id} label="Copy id" />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -386,7 +353,7 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
           {decls.map((d) => (
             <div key={d.id}>
               <div className="flex flex-wrap items-center gap-1.5">
-                <code className="font-mono text-xs text-sky-400">
+                <code className="font-mono text-xs text-muted-foreground">
                   {d.path}:{d.span?.startLine}
                 </code>
                 {d.generator && (

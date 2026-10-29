@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { KindGlyph } from '@/components/kind-glyph';
+import { middleTruncate } from '@/components/blocks';
 import { useStore, type Tab } from '@/store';
 
 const TITLES: Record<Tab, string> = { map: 'Map', graph: 'Neighbourhood', tables: 'Tables', overview: 'Summary', docs: 'Context & wiki' };
@@ -46,7 +47,7 @@ function MapBreadcrumb() {
                 <DropdownMenu>
                   <DropdownMenuTrigger className={`flex min-w-0 items-center gap-1 rounded-md px-1.5 py-0.5 outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring ${last ? 'font-medium text-foreground' : ''}`}>
                     <KindGlyph kind={n.kind} />
-                    <span className="max-w-48 truncate">{n.label}</span>
+                    <span className="whitespace-nowrap" title={n.label}>{middleTruncate(n.label, 32)}</span>
                     <ChevronDown className="size-3.5 opacity-60" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="max-h-96 w-72 overflow-y-auto">
@@ -69,11 +70,10 @@ function MapBreadcrumb() {
         })}
         {childrenOfLast.length > 0 && (
           <>
-            <BreadcrumbSeparator />
             <BreadcrumbItem>
               <DropdownMenu>
-                <DropdownMenuTrigger className="rounded-md px-1.5 py-0.5 text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring" aria-label="Go inside">
-                  <ChevronDown className="size-4" />
+                <DropdownMenuTrigger className="flex items-center gap-1 rounded-md border border-dashed px-1.5 py-0.5 text-xs text-subtle-foreground outline-none hover:border-border-strong hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring" aria-label="Go inside">
+                  Inside <ChevronDown className="size-3.5" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="max-h-96 w-72 overflow-y-auto">
                   <DropdownMenuLabel className="text-xs text-muted-foreground">Inside</DropdownMenuLabel>

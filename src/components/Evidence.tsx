@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useStore } from '@/store';
+import { CodeBlock } from './blocks';
 import type { Evidence, Span } from '@/model/types';
 
 const loc = (path: string, span?: Span) => (span ? `${path}:${span.startLine}:${span.startColumn}` : path);
@@ -30,18 +31,9 @@ export function SourceContext({ path, store, span, radius = 6 }: { path: string;
   const start = Math.max(1, (span?.startLine ?? 1) - radius);
   const end = Math.min(lines.length, (span?.endLine ?? span?.startLine ?? 1) + radius);
   return (
-    <pre className="my-2 overflow-x-auto rounded-md border bg-zinc-950 py-2 font-mono text-xs leading-relaxed">
-      {lines.slice(start - 1, end).map((l, i) => {
-        const n = start + i;
-        const hit = span && n >= span.startLine && n <= span.endLine;
-        return (
-          <div key={n} className={`whitespace-pre px-3 ${hit ? 'bg-sky-500/10 shadow-[inset_2px_0_0] shadow-sky-400' : ''}`}>
-            <span className="mr-4 inline-block w-8 select-none text-right text-zinc-600">{n}</span>
-            {l || ' '}
-          </div>
-        );
-      })}
-    </pre>
+    <div className="my-2">
+      <CodeBlock lines={lines.slice(start - 1, end)} start={start} highlight={span ? [span.startLine, span.endLine] : undefined} />
+    </div>
   );
 }
 
@@ -51,7 +43,7 @@ function EvidenceItem({ e }: { e: Evidence }) {
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-1.5">
-        <button className="flex min-w-0 items-center gap-1 rounded-sm font-mono text-xs text-sky-400 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setOpen(!open)} title="Show source context">
+        <button className="flex min-w-0 items-center gap-1 rounded-sm font-mono text-xs text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setOpen(!open)} title="Show source context">
           <ChevronRight className={`size-3 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
           <span className="truncate">{loc(e.path, e.span)}</span>
         </button>
@@ -66,7 +58,7 @@ function EvidenceItem({ e }: { e: Evidence }) {
           </Badge>
         )}
       </div>
-      {e.snippetText && !open && <pre className="overflow-x-auto rounded-md border bg-zinc-950 px-3 py-1.5 font-mono text-xs">{e.snippetText}</pre>}
+      {e.snippetText && !open && <pre className="overflow-x-auto rounded-lg border bg-canvas px-3 py-1.5 font-mono text-xs">{e.snippetText}</pre>}
       {open && <SourceContext path={e.path} store={e.store} span={e.span} />}
       <p className="font-mono text-[10.5px] text-muted-foreground">
         {e.extractor} · blob {String(e.blobId ?? '').slice(0, 10)}
