@@ -80,7 +80,8 @@ export function isTestProjectPath(p: string) {
 }
 
 function projectLabel(p: ProjectRecord) {
-  return p.assemblyName || p.path.split('/').pop()!.replace(/\.[a-z]+proj$/i, '');
+  const angularName = ((p.ext as Json | undefined)?.angular as Json | undefined)?.name;
+  return p.assemblyName || (typeof angularName === 'string' && angularName) || p.path.split('/').pop()!.replace(/\.[a-z]+proj$/i, '');
 }
 
 function entityLabel(e: Entity, container?: Entity) {

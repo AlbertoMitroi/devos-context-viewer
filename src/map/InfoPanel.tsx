@@ -9,6 +9,8 @@ import type { MapEdge, MapLayout, MapNode } from '@/model/mapLayout';
 import { relationColor, rgbCss } from '@/theme/palette';
 import { useStore } from '@/store';
 import { HoverDetails } from './HoverCard';
+import { RoleGlyph } from '@/components/role-glyph';
+import { ROLE_HINT, ROLE_LABEL, ROLES, roleOfNode, type Role } from '@/model/roles';
 
 const GROUPS = new Set(['project', 'package', 'group', 'pkgnamespace']);
 
@@ -52,15 +54,25 @@ export function InfoPanel(props: {
   focusId: string | null;
   layout: MapLayout;
   model: GraphModel;
+  roles: Map<string, Role>;
   hoverOpen: boolean;
 }) {
-  const { drawn, focused, hoverPair, hover, focusId, layout, model, hoverOpen } = props;
+  const { drawn, focused, hoverPair, hover, focusId, layout, model, roles, hoverOpen } = props;
   const [legendOpen, setLegendOpen] = useState(true);
   const entityKinds = useStore((s) => s.entityKinds);
   const edgeKinds = useStore((s) => s.edgeKinds);
   const toggleIn = useStore((s) => s.toggleIn);
   const set = useStore((s) => s.set);
   const kinds = useMemo(() => [...new Set(drawn.map((n) => n.kind).filter((k) => !GROUPS.has(k)))].sort(), [drawn]);
+  // Roles of the projects and packages on the map, with how many of each the map holds.
+  const roleCounts = useMemo(() => {
+    const counts = new Map<Role, number>();
+    for (const n of layout.order) {
+      const r = roleOfNode(roles, n.id, n.kind);
+      if (r) counts.set(r, (counts.get(r) ?? 0) + 1);
+    }
+    return ROLES.filter((r) => counts.has(r)).map((r) => [r, counts.get(r)!] as const);
+  }, [layout, roles]);
   const rels = useMemo(() => [...new Set(focused.flatMap((e) => Object.keys(e.kinds)))].sort(), [focused]);
   const label = (id: string) => layout.nodes.get(id)?.label ?? id;
   const focusNode = focusId ? layout.nodes.get(focusId) : undefined;
@@ -146,7 +158,7 @@ export function InfoPanel(props: {
   return (
     <div className="absolute bottom-4 right-4 z-10 w-80 overflow-hidden rounded-xl border bg-popover/95 text-xs shadow-lg backdrop-blur" onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
       {top && <div className="border-b">{top}</div>}
-      {(kinds.length > 0 || rels.length > 0) && (
+      {(roleCounts.length > 0 || kinds.length > 0 || rels.length > 0) && (
         <>
           <button className="flex w-full items-center justify-between px-3 py-2 text-2xs font-medium uppercase tracking-[0.08em] text-subtle-foreground hover:text-foreground" onClick={() => setLegendOpen(!legendOpen)} aria-expanded={legendOpen}>
             Legend
@@ -154,8 +166,19 @@ export function InfoPanel(props: {
           </button>
           {legendOpen && (
             <div className="max-h-56 space-y-3 overflow-y-auto border-t px-2 pb-2 pt-2">
-              {kinds.length > 0 && (
+              {roleCounts.length > 0 && (
                 <div className="grid grid-cols-2 gap-0.5">
+                  {roleCounts.map(([r, c]) => (
+                    <div key={r} className="flex items-center gap-2 px-1.5 py-1 text-muted-foreground" title={ROLE_HINT[r]}>
+                      <RoleGlyph role={r} />
+                      <span className="min-w-0 flex-1 truncate">{ROLE_LABEL[r]}</span>
+                      <span className="font-mono text-2xs text-subtle-foreground">{c}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {kinds.length > 0 && (
+                <div className={`grid grid-cols-2 gap-0.5 ${roleCounts.length ? 'border-t pt-2' : ''}`}>
                   {kinds.map((k) => (
                     <button key={k} className={`flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-accent ${entityKinds.has(k) ? '' : 'opacity-40'}`} onClick={() => toggleIn('entityKinds', k)} title="Show or hide">
                       <KindGlyph kind={k} />

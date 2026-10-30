@@ -10,6 +10,7 @@ import { KindGlyph } from '@/components/kind-glyph';
 import { PageHeader, PathText, Section, StatCard } from '@/components/blocks';
 import { useStore } from '@/store';
 import { kindLabel } from '@/model/kinds';
+import { coverageRows } from '@/model/coverage';
 import { relationColor, rgbCss, symbolColor } from '@/theme/palette';
 import type { Diagnostic, Json } from '@/model/types';
 import { cn } from '@/lib/utils';
@@ -152,16 +153,23 @@ export function Overview() {
   const repo = (m.repository as Json | undefined)?.remoteUrl as string | undefined;
   const engine = m.engine as Json | undefined;
   const roslyn = m.roslyn as Json | undefined;
+  // The compiler line follows the engine: Roslyn for .NET, the repository's TypeScript and Angular compilers for Angular.
+  const tsContext = ((m.toolchain as Json | undefined)?.contexts as Json[] | undefined)?.[0];
+  const compiler = roslyn
+    ? `Roslyn ${String(roslyn.apiVersion ?? roslyn.build)}`
+    : tsContext
+      ? [tsContext.compiler && `TypeScript ${String(tsContext.compiler)}`, tsContext.angularCompiler && `Angular ${String(tsContext.angularCompiler)}`].filter(Boolean).join(' · ')
+      : null;
   const required = (m.requiredCapabilities as string[] | undefined) ?? [];
   const unsupported = required.filter((c) => !SUPPORTED_CAPABILITIES.has(c));
-  const coverage = ((m.coverage as Json | undefined)?.projects as Json[] | undefined) ?? [];
+  const coverage = useMemo(() => coverageRows(data), [data]);
   const stages = ((data.run?.stages as { name: string; elapsedMs: number }[] | undefined) ?? []).map((s) => [s.name, s.elapsedMs] as [string, number]);
   const sorted = (mm: Map<string, number>) => [...mm.entries()].sort((a, b) => b[1] - a[1]);
   const semantic = coverage.filter((c) => c.state === 'semantic').length;
   const warnings = data.diagnostics.filter((d) => d.severity === 'warning' || d.severity === 'error').length;
   const status = String(m.status ?? 'unknown');
   const delta = (k: string) => (prev && prev[k] !== undefined ? (data.counts[k] ?? 0) - prev[k] : null);
-  const maxSymbols = Math.max(1, ...coverage.map((c) => model.nodes.get(String(c.project))?.descendants ?? 0));
+  const maxSymbols = Math.max(1, ...coverage.map((c) => model.nodes.get(c.id)?.descendants ?? 0));
 
   const alerts: { tone: 'warn' | 'info'; text: string }[] = [];
   if (unsupported.length) alerts.push({ tone: 'warn', text: `The generation requires capabilities this viewer does not know: ${unsupported.join(', ')}. Per the contract, the data should not be interpreted.` });
@@ -183,7 +191,7 @@ export function Overview() {
               </span>
               <span>{engine ? `${engine.name} ${engine.version}` : 'unknown engine'}</span>
               <span>schema {String(m.schemaVersion ?? '?')}</span>
-              <span>Roslyn {roslyn ? String(roslyn.apiVersion ?? roslyn.build) : '?'}</span>
+              {compiler && <span>{compiler}</span>}
             </>
           }
           actions={
@@ -241,19 +249,19 @@ export function Overview() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {coverage.map((c) => {
-                  const node = model.nodes.get(String(c.project));
+                {coverage.map((c, i) => {
+                  const node = model.nodes.get(c.id);
                   const diags = data.diagnostics.filter((d) => d.scope === c.path);
                   const n = node?.descendants ?? 0;
                   return (
-                    <TableRow key={String(c.path)}>
+                    <TableRow key={`${c.path}|${i}`}>
                       <TableCell className="pl-4">
-                        <div className="font-medium">{node?.label ?? String(c.path)}</div>
-                        <div className="font-mono text-2xs text-subtle-foreground">{String(c.path)}</div>
+                        <div className="font-medium">{node?.label ?? c.name ?? c.path}</div>
+                        <div className="font-mono text-2xs text-subtle-foreground">{c.path}</div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={stateClass(String(c.state))}>
-                          {String(c.state)}
+                        <Badge variant="outline" className={stateClass(c.state)}>
+                          {c.state}
                         </Badge>
                       </TableCell>
                       <TableCell>

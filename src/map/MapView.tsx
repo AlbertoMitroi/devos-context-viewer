@@ -19,6 +19,8 @@ import { MapControls } from './MapControls';
 import { InfoPanel } from './InfoPanel';
 import { FocusBar } from './FocusBar';
 import { fitLabel } from './labels';
+import { projectRoles, roleOfNode } from '../model/roles';
+import { ROLE_SHAPE } from '../components/role-glyph';
 
 type RGBA = [number, number, number, number];
 
@@ -40,6 +42,7 @@ interface EdgeHalf {
 
 export function MapView() {
   const model = useStore((s) => s.model)!;
+  const data = useStore((s) => s.data)!;
   const filters = useStore(
     useShallow((s) => ({
       hidden: s.hidden,
@@ -91,6 +94,8 @@ export function MapView() {
     layout.roots.forEach((r, i) => m.set(r, projectColor(i)));
     return m;
   }, [layout]);
+  const roles = useMemo(() => projectRoles(data), [data]);
+  const roleOf = useCallback((n: MapNode) => roleOfNode(roles, n.id, n.kind), [roles]);
   const colorOf = useCallback((n: MapNode): RGB => (GROUP_KINDS.has(n.kind) ? rootColor.get(n.root) ?? [120, 130, 150] : symbolColor(n.kind)), [rootColor]);
 
   useEffect(() => {
@@ -403,7 +408,15 @@ export function MapView() {
   const orbs = frame.drawn.filter((n) => openOf(n) < 1);
   const lineOf = (n: MapNode): RGB => (GROUP_KINDS.has(n.kind) ? lighten(colorOf(n), 0.12) : colorOf(n));
   // Closed circles: the hue mixed towards the canvas, so labels on top stay readable.
-  const fillOf = (n: MapNode): RGB => mix(colorOf(n), CANVAS, GROUP_KINDS.has(n.kind) ? 0.5 : 0.42);
+  // Tests recede a little further, so the system's own parts lead.
+  const fillOf = (n: MapNode): RGB => mix(colorOf(n), CANVAS, roleOf(n) === 'test' ? 0.62 : GROUP_KINDS.has(n.kind) ? 0.5 : 0.42);
+  const shapeOf = (n: MapNode) => {
+    const role = roleOf(n);
+    return role ? ROLE_SHAPE[role] : 0;
+  };
+  // How much of the closed orb still shows. A shaped orb leaves twice as fast as it opens: its children are
+  // packed in a circle and would otherwise poke out of the shape while the circle opens.
+  const closedOf = (n: MapNode) => (shapeOf(n) ? Math.max(0, 1 - 2 * openOf(n)) : 1 - openOf(n));
 
   const labelSize = (n: MapNode) => Math.max(12, Math.min(18, (n.r * scale) / 4));
   const closedLabels = orbs.filter((n) => openOf(n) < 0.05 && n.r * scale >= 22 && ctxOf(n) === 1);
@@ -453,9 +466,9 @@ export function MapView() {
       radiusUnits: 'common',
       filled: true,
       stroked: true,
-      getFillColor: (n) => [...fillOf(n), a8(255 * (1 - openOf(n)) * fadeOf(n))] as RGBA,
+      getFillColor: (n) => [...fillOf(n), a8(255 * closedOf(n) * fadeOf(n))] as RGBA,
       getLineColor: (n) => {
-        const a = (1 - openOf(n)) * fadeOf(n);
+        const a = closedOf(n) * fadeOf(n);
         if (n.id === selectedOnMap) return [250, 250, 250, a8(255 * a)];
         if (hits.has(n.id)) return [250, 204, 21, a8(255 * a)];
         if (n.id === hoverId) return [250, 250, 250, a8(255 * Math.max(a, 0.5))];
@@ -465,11 +478,12 @@ export function MapView() {
       },
       getLineWidth: (n) => (n.id === selectedOnMap || hits.has(n.id) || n.id === hoverId ? 2.5 : isEnd(n) ? 2 : 1),
       lineWidthUnits: 'pixels',
+      getShape: shapeOf,
       pickable: true,
-      updateTriggers: { getFillColor: [frame, rootColor, focusRoot, litKey], getLineColor: [frame, selectedOnMap, hits, hoverId, focusRoot, litKey], getLineWidth: [selectedOnMap, hits, hoverId, litKey] },
+      updateTriggers: { getShape: [roles], getFillColor: [frame, rootColor, focusRoot, litKey, roles], getLineColor: [frame, selectedOnMap, hits, hoverId, focusRoot, litKey], getLineWidth: [selectedOnMap, hits, hoverId, litKey] },
     }),
-    // Soft white halo around the selection (neutral accent).
-    new ScatterplotLayer<MapNode>({
+    // Soft white halo around the selection (neutral accent), in the selection's shape.
+    new OrbLayer<MapNode>({
       id: 'selection-halo',
       data: selectedNode && drawnIds.has(selectedNode.id) ? [selectedNode] : [],
       getPosition: (n) => [n.x, n.y],
@@ -480,6 +494,8 @@ export function MapView() {
       getLineColor: [250, 250, 250, 46],
       getLineWidth: 7,
       lineWidthUnits: 'pixels',
+      getShape: shapeOf,
+      updateTriggers: { getShape: [roles] },
     }),
     new PathLayer<MapEdge>({
       id: 'edges-active',
@@ -627,6 +643,7 @@ export function MapView() {
         focusId={focusId}
         layout={layout}
         model={model}
+        roles={roles}
         hoverOpen={hover?.node ? frame.open.has(hover.node.id) && crumbs.includes(hover.node.id) : false}
       />
     </div>

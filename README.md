@@ -12,6 +12,21 @@ A consumer for the generations produced by [dotnet-intelligence](../devos-dotnet
 | **Summary** | Manifest, coverage per project, counts, run stages, diagnostics, contract warnings (unknown capabilities or kinds, dangling ids). |
 | **Context & wiki** | The generation's Markdown context packs and wiki, with Mermaid diagrams. |
 
+### Project shapes
+
+On the map, the shape of a project says what it is; its colour only tells projects apart. The role is read from the generation (the contract has no role field yet), in this order:
+
+| Shape | Role | Read from |
+|---|---|---|
+| dashed circle | Tests | test path (`*Tests`, `test/`) or a direct xunit, MSTest, NUnit or `Microsoft.NET.Test.Sdk` reference |
+| diamond | Front end | Angular `projectType: application`, a `MauiProgram` class, or an entry point plus Blazor components or Razor Pages |
+| octagon | Orchestration | an entry point plus a direct `Aspire.Hosting.AppHost` reference |
+| circle | Service | any other entry point (`Main`, top-level statements) |
+| rounded square | Library | no entry point, and Angular libraries |
+| hexagon | External package | NuGet or npm packages under *External packages* |
+
+Shapes are drawn inside each packed circle, so the layout and zooming are unchanged; a project opens into a circle as before. The legend lists the roles on the current map.
+
 ### Map navigation
 
 | Input | Action |
