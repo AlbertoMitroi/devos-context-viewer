@@ -1,6 +1,6 @@
 # context-viewer
 
-A consumer for the generations produced by [dotnet-intelligence](../dotnet-intelligence): it reads the artifact contract (manifest, `graph/*.ndjson`, snippets, `context/`, `wiki/`) and lets you explore it visually. It never writes to a generation.
+A consumer for the generations produced by [dotnet-intelligence](../devos-dotnet-intelligence): it reads the artifact contract (manifest, `graph/*.ndjson`, snippets, `context/`, `wiki/`) and lets you explore it visually. It never writes to a generation.
 
 ## Views
 
