@@ -88,3 +88,7 @@ Production build: `npm run build && npm start -- --port 4600`.
 npm test
 CV_SAMPLE=/path/to/generation npm test   # adds a smoke test on a real generation
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE).
