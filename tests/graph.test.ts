@@ -380,3 +380,40 @@ describe('palette lookups', () => {
     expect(c).toEqual(kindColor('constructor'));
   });
 });
+
+import { focusEdges, highlightTiers, tierOpacity } from '../src/map/focus';
+import { clipPath } from '../src/map/edges';
+
+describe('map focus', () => {
+  const e = (source: string, target: string, count: number, back: number) => ({ source, target, count, back, kinds: { references: count }, kind: 'references', weakest: 'exact', edgeIdx: [] });
+  const edges = [e('a', 'b', 3, 0), e('c', 'a', 2, 2), e('d', 'e', 1, 0)];
+
+  it('keeps only edges of the focus, by direction', () => {
+    expect(focusEdges(edges, null, 'both')).toEqual([]);
+    expect(focusEdges(edges, 'a', 'both').map((x) => x.target + x.source)).toEqual(['ba', 'ac']);
+    // a uses b (a -> b); c -> a has 2 relations, both reversed (so they run a -> c): a uses c too.
+    expect(focusEdges(edges, 'a', 'out')).toHaveLength(2);
+    expect(focusEdges(edges, 'a', 'in')).toHaveLength(0);
+    expect(focusEdges(edges, 'b', 'in')).toHaveLength(1);
+  });
+
+  it('lights the focus and its connections, containers faintly, nothing from hover', () => {
+    const layout = buildMapLayout(model, state());
+    const fe = focusEdges(computeFrame(model, layout, state(), { scale: 1e6, minX: -1e9, maxX: 1e9, minY: -1e9, maxY: 1e9 }).edges, RUN, 'both');
+    const t = highlightTiers(layout, RUN, fe)!;
+    expect(tierOpacity(t, RUN)).toBe(1);
+    expect(tierOpacity(t, REPO_GET)).toBe(1);
+    expect(tierOpacity(t, 'prj:core')).toBe(0.18);
+    expect(tierOpacity(t, 'prj:tests')).toBe(0.06);
+    expect(highlightTiers(layout, null, fe)).toBeNull();
+  });
+
+  it('clips a path where it leaves an open circle', () => {
+    const p: [number, number][] = [[0, 0], [5, 0], [10, 0], [20, 0]];
+    const out = clipPath(p, { x: 0, y: 0, r: 8 }, null);
+    expect(out[0][0]).toBeCloseTo(8, 3);
+    expect(out[out.length - 1]).toEqual([20, 0]);
+    const both = clipPath(p, { x: 0, y: 0, r: 8 }, { x: 20, y: 0, r: 4 });
+    expect(both[both.length - 1][0]).toBeCloseTo(16, 3);
+  });
+});

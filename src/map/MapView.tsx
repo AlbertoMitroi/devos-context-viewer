@@ -12,10 +12,12 @@ import { ancestors } from '../model/graphModel';
 import { projectColor, relationColor, symbolColor, type RGB } from '../theme/palette';
 import { Camera, prefersReducedMotion, wheelZoomDelta, type Cam } from './camera';
 import { OrbLayer, RegionLayer } from './OrbLayer';
-import { createEdgeRouter, pointAt, type Point } from './edges';
+import { clipPath, createEdgeRouter, pointAt, type Point } from './edges';
+import { focusEdges, highlightTiers, tierOpacity } from './focus';
 import { Minimap } from './Minimap';
 import { MapControls } from './MapControls';
-import { Legend } from './Legend';
+import { InfoPanel } from './InfoPanel';
+import { FocusBar } from './FocusBar';
 import { fitLabel } from './labels';
 
 type RGBA = [number, number, number, number];
@@ -65,6 +67,7 @@ export function MapView() {
   const fitTick = useStore((s) => s.fitTick);
   const set = useStore((s) => s.set);
   const navigate = useStore((s) => s.navigate);
+  const focusDirection = useStore((s) => s.mapFocusDirection);
 
   const wrap = useRef<HTMLDivElement>(null);
   const deck = useRef<DeckGLRef>(null);
@@ -168,8 +171,10 @@ export function MapView() {
   }, [crumbKey, set]);
   const selectedId = selection?.type === 'node' ? selection.id : null;
   const selectedOnMap = useMemo(() => (selectedId ? layoutNodeFor(selectedId)?.id ?? null : null), [selectedId, layoutNodeFor]);
+  // Hover and focus are separate: hover only outlines a circle and fills the info panel; the selection
+  // (focus) is the only thing that changes the map.
   const hoverId = hover?.node?.id ?? null;
-  const active = useMemo(() => new Set([hoverId, selectedOnMap].filter(Boolean) as string[]), [hoverId, selectedOnMap]);
+  const focusId = selectedOnMap;
   const hits = useMemo(() => {
     const token = searchQuery.toLowerCase().split(/\s+/).find((t) => t && !t.startsWith('kind:')) ?? '';
     return new Set(searchHits.filter((id) => !token || (model.nodes.get(id)?.label.toLowerCase().includes(token) ?? false)));
@@ -178,32 +183,42 @@ export function MapView() {
   const drawnIds = useMemo(() => new Set(frame.drawn.map((n) => n.id)), [frame]);
   const edgeFade = useCallback((e: MapEdge) => Math.min(frame.fade.get(e.source) ?? 1, frame.fade.get(e.target) ?? 1), [frame]);
   const focusRootId = crumbs[0] ?? null;
+  const onScreen = useMemo(() => frame.edges.filter((e) => drawnIds.has(e.source) || drawnIds.has(e.target)), [frame, drawnIds]);
+  const focused = useMemo(() => (edgeMode === 'none' ? [] : focusEdges(onScreen, focusId, focusDirection)), [onScreen, focusId, focusDirection, edgeMode]);
+  // Background edges, only in "All" mode: between projects at the overview, or touching the project you are in.
   const edges = useMemo(() => {
-    if (edgeMode === 'none') return [];
-    let list = frame.edges.filter((e) => drawnIds.has(e.source) || drawnIds.has(e.target));
-    if (edgeMode === 'selection') return list.filter((e) => active.has(e.source) || active.has(e.target));
-    // "All": between projects at the overview, or touching the project you are in.
+    if (edgeMode !== 'all') return [];
     const rootOf = (id: string) => layout.nodes.get(id)?.root;
-    list = focusRootId ? list.filter((e) => rootOf(e.source) === focusRootId || rootOf(e.target) === focusRootId) : list.filter((e) => !layout.nodes.get(e.source)?.parent && !layout.nodes.get(e.target)?.parent);
-    return list;
-  }, [frame, drawnIds, edgeMode, active, layout, focusRootId]);
-  const activeEdges = useMemo(() => (active.size ? edges.filter((e) => active.has(e.source) || active.has(e.target)) : []), [edges, active]);
+    return focusRootId ? onScreen.filter((e) => rootOf(e.source) === focusRootId || rootOf(e.target) === focusRootId) : onScreen.filter((e) => !layout.nodes.get(e.source)?.parent && !layout.nodes.get(e.target)?.parent);
+  }, [onScreen, edgeMode, layout, focusRootId]);
+  // In focus, hovering a connected circle singles out just the edges between it and the focus.
+  const hoverPair = useMemo(() => new Set(focusId && hoverId && hoverId !== focusId ? focused.filter((e) => e.source === hoverId || e.target === hoverId) : []), [focused, focusId, hoverId]);
 
-  // Edges drawn in two halves: the tail fainter than the head, so direction reads at a glance.
+  // Lines leave an open circle (the one you are inside) from its border, never across its contents.
+  const pathFor = useCallback(
+    (a: string, b: string) => {
+      const openCircle = (id: string) => ((frame.openness.get(id) ?? 0) > 0.5 ? layout.nodes.get(id) ?? null : null);
+      return clipPath(route(a, b), openCircle(a), openCircle(b));
+    },
+    [route, frame, layout],
+  );
+
+  // Background edges drawn in two halves: the tail fainter than the head, so direction reads at a glance.
   const halves = useMemo(() => {
     const out: EdgeHalf[] = [];
+    const inFocus = new Set(focused);
     for (const e of edges) {
-      if (active.has(e.source) || active.has(e.target)) continue;
-      const path = route(e.source, e.target);
+      if (inFocus.has(e)) continue;
+      const path = pathFor(e.source, e.target);
       const mid = Math.floor(path.length / 2);
       out.push({ edge: e, path: path.slice(0, mid + 1), head: false }, { edge: e, path: path.slice(mid), head: true });
     }
     return out;
-  }, [edges, route, active]);
+  }, [edges, pathFor, focused]);
 
-  // Particles flow along active edges while something is hovered or selected.
+  // Particles flow along the focus edges, in the direction of the relations.
   useEffect(() => {
-    if (!activeEdges.length || prefersReducedMotion()) return;
+    if (!focused.length || prefersReducedMotion()) return;
     let raf = 0;
     const t0 = performance.now();
     const tick = (now: number) => {
@@ -212,11 +227,11 @@ export function MapView() {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [activeEdges]);
+  }, [focused]);
   const particles = useMemo(() => {
     const out: { p: Point; c: RGB }[] = [];
-    for (const e of activeEdges.slice(0, 300)) {
-      const path = route(e.source, e.target);
+    for (const e of focused.slice(0, 300)) {
+      const path = pathFor(e.source, e.target);
       const c = lighten(relationColor(e.kind), 0.35);
       const n = Math.min(4, 1 + Math.floor(Math.log2(e.count + 1)));
       const forward = e.count - e.back;
@@ -227,7 +242,7 @@ export function MapView() {
       }
     }
     return out;
-  }, [activeEdges, route, time]);
+  }, [focused, pathFor, time]);
 
   // Up from the current node (the selection, else the deepest breadcrumb) to the nearest ancestor that is
   // visibly larger, so namespaces with a single child never make Up feel stuck.
@@ -355,7 +370,8 @@ export function MapView() {
         e.preventDefault();
         goUp();
       } else if (e.key === 'Escape') {
-        if (st.inspectorOpen) st.set({ inspectorOpen: false });
+        // Esc leaves focus first; with nothing selected it goes up.
+        if (st.selection) st.set({ selection: null });
         else goUp();
       } else if (e.key === 'i') {
         st.set({ inspectorOpen: !st.inspectorOpen });
@@ -375,24 +391,12 @@ export function MapView() {
   // Focus and context: inside a project, everything outside it recedes and loses its labels.
   const focusRoot = crumbs[0] ?? null;
   const ctxOf = (n: MapNode) => (!focusRoot || n.root === focusRoot ? 1 : 0.22);
-  // Hover or selection: three tiers. The active node and what its drawn edges connect to stay fully lit,
-  // their containers stay half lit for orientation, everything else almost disappears.
-  const highlight = useMemo(() => {
-    if (!active.size) return null;
-    const ends = new Set<string>(active);
-    for (const e of activeEdges) {
-      ends.add(e.source);
-      ends.add(e.target);
-    }
-    for (const id of active) for (const d of layout.nodes.get(id)?.children ?? []) ends.add(d);
-    const containers = new Set<string>();
-    for (const id of ends) for (let p = layout.nodes.get(id)?.parent ?? null; p && !containers.has(p); p = layout.nodes.get(p)?.parent ?? null) containers.add(p);
-    return { ends, containers };
-  }, [active, activeEdges, layout]);
-  const litKey = highlight ? [...active].join('|') + activeEdges.length : '';
-  // Containers recede almost as far as everything else: only the active node and its connections stay lit.
-  const hlOf = (n: MapNode) => (!highlight || highlight.ends.has(n.id) ? 1 : highlight.containers.has(n.id) ? 0.12 : 0.06);
-  const isEnd = (n: MapNode) => !!highlight && highlight.ends.has(n.id) && !active.has(n.id);
+  // Focus tiers come from the selection only; hover never dims anything.
+  const tiers = useMemo(() => highlightTiers(layout, focusId, focused), [layout, focusId, focused]);
+  const litKey = focusId ? `${focusId}|${focused.length}|${focusDirection}` : '';
+  const hlOf = (n: MapNode) => tierOpacity(tiers, n.id);
+  const isEnd = (n: MapNode) => !!tiers && tiers.ends.has(n.id) && n.id !== focusId;
+  const focusNode = focusId ? layout.nodes.get(focusId) : undefined;
   const fadeOf = (n: MapNode) => (frame.fade.get(n.id) ?? 1) * ctxOf(n) * hlOf(n);
   const openOf = (n: MapNode) => frame.openness.get(n.id) ?? 0;
   const regions = frame.drawn.filter((n) => openOf(n) > 0);
@@ -454,7 +458,7 @@ export function MapView() {
         const a = (1 - openOf(n)) * fadeOf(n);
         if (n.id === selectedOnMap) return [250, 250, 250, a8(255 * a)];
         if (hits.has(n.id)) return [250, 204, 21, a8(255 * a)];
-        if (n.id === hoverId) return [250, 250, 250, a8(230 * a)];
+        if (n.id === hoverId) return [250, 250, 250, a8(255 * Math.max(a, 0.5))];
         // Connected circles get a bright rim so the endpoints of every line are obvious.
         if (isEnd(n)) return [...lighten(lineOf(n), 0.6), a8(255 * a)] as RGBA;
         return [...lineOf(n), a8(200 * a)] as RGBA;
@@ -479,15 +483,15 @@ export function MapView() {
     }),
     new PathLayer<MapEdge>({
       id: 'edges-active',
-      data: activeEdges,
-      getPath: (e) => route(e.source, e.target) as never,
-      getColor: (e) => (edgeKey(e) === selectedEdgeKey ? [250, 250, 250, 255] : ([...lighten(relationColor(e.kind), 0.2), 255] as RGBA)),
-      getWidth: (e) => Math.min(9, 2.5 + Math.log2(e.count) * 1.2),
+      data: focused,
+      getPath: (e) => pathFor(e.source, e.target) as never,
+      getColor: (e) => (edgeKey(e) === selectedEdgeKey || hoverPair.has(e) ? [250, 250, 250, 255] : ([...lighten(relationColor(e.kind), 0.2), hoverPair.size ? 120 : 255] as RGBA)),
+      getWidth: (e) => Math.min(10, (hoverPair.has(e) ? 4 : 2.5) + Math.log2(e.count) * 1.2),
       widthUnits: 'pixels',
       capRounded: true,
       jointRounded: true,
       pickable: true,
-      updateTriggers: { getColor: [frame, selectedEdgeKey] },
+      updateTriggers: { getColor: [frame, selectedEdgeKey, hoverPair], getWidth: [hoverPair], getPath: [pathFor] },
     }),
     new ScatterplotLayer<{ p: Point; c: RGB }>({
       id: 'particles',
@@ -568,7 +572,7 @@ export function MapView() {
   const step = gridWorld * scale;
   const ox = (((size.width / 2 - cam.x * scale) % step) + step) % step;
   const oy = (((size.height / 2 - cam.y * scale) % step) + step) % step;
-  const gridAlpha = (Math.min(1, (step - 26) / 26) * 0.5 + 0.5) * (highlight ? 0.25 : 1);
+  const gridAlpha = (Math.min(1, (step - 26) / 26) * 0.5 + 0.5) * (tiers ? 0.25 : 1);
 
   return (
     <div
@@ -598,10 +602,11 @@ export function MapView() {
           onHover={(info) => {
             if (drag.current?.moved) return;
             const obj = info.object as MapNode | EdgeHalf | MapEdge | undefined;
-            if (!obj) setHover(null);
-            else if ('edge' in obj) setHover({ x: info.x, y: info.y, edge: obj.edge });
-            else if ('edgeIdx' in obj) setHover((h) => ({ x: info.x, y: info.y, edge: obj, node: h?.node }));
-            else setHover({ x: info.x, y: info.y, node: obj });
+            // Only react when the object under the pointer changes, not on every pixel.
+            if (!obj) setHover((h) => (h ? null : h));
+            else if ('edge' in obj) setHover((h) => (h?.edge === obj.edge ? h : { x: info.x, y: info.y, edge: obj.edge, node: h?.node }));
+            else if ('edgeIdx' in obj) setHover((h) => (h?.edge === obj ? h : { x: info.x, y: info.y, edge: obj, node: h?.node }));
+            else setHover((h) => (h?.node === obj && !h.edge ? h : { x: info.x, y: info.y, node: obj }));
           }}
           getCursor={({ isHovering }) => (drag.current?.moved ? 'grabbing' : isHovering ? 'pointer' : 'grab')}
         />
@@ -613,14 +618,16 @@ export function MapView() {
         onZoomOut={() => camera.zoomAt(size.width / 2, size.height / 2, -1)}
         onFit={() => navigate(null, { select: false })}
       />
-      <Legend
+      {focusNode && <FocusBar node={focusNode} connected={new Set(focused.map((e) => (e.source === focusNode.id ? e.target : e.source))).size} />}
+      <InfoPanel
         drawn={frame.drawn}
-        edges={activeEdges.length ? activeEdges : edges}
+        focused={focused}
+        hoverPair={hoverPair}
         hover={hover}
+        focusId={focusId}
         layout={layout}
         model={model}
         hoverOpen={hover?.node ? frame.open.has(hover.node.id) && crumbs.includes(hover.node.id) : false}
-        hoverSelected={!!hover?.node && hover.node.id === selectedOnMap}
       />
     </div>
   );

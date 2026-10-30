@@ -34,6 +34,8 @@ interface State extends ViewState {
   edgeLabels: boolean;
   hoverHighlight: boolean;
   mapEdges: MapEdges;
+  /** Which relations of the selection the map shows: what it uses, what uses it, or both. */
+  mapFocusDirection: 'out' | 'in' | 'both';
   selection: Selection;
   centerOn: string | null;
   searchQuery: string;
@@ -149,6 +151,7 @@ export const useStore = create<State>((set, get) => ({
   edgeLabels: true,
   hoverHighlight: true,
   mapEdges: 'selection',
+  mapFocusDirection: 'both',
   selection: null,
   centerOn: null,
   searchQuery: '',

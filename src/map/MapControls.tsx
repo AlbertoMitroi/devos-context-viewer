@@ -22,7 +22,7 @@ function Control({ label, shortcut, onClick, children }: { label: string; shortc
 export function MapControls({ onZoomIn, onZoomOut, onFit }: { onZoomIn: () => void; onZoomOut: () => void; onFit: () => void }) {
   return (
     <div
-      className="absolute bottom-4 right-4 z-10 flex flex-col items-center rounded-lg border bg-background/80 p-1 shadow-lg backdrop-blur"
+      className="absolute right-4 top-4 z-10 flex flex-col items-center rounded-lg border bg-background/80 p-1 shadow-lg backdrop-blur"
       onPointerDown={(e) => e.stopPropagation()}
       onPointerUp={(e) => e.stopPropagation()}
     >

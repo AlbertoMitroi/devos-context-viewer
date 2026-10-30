@@ -236,7 +236,7 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
             <>
               <section>
                 <SectionTitle>Project</SectionTitle>
-                <Fields rec={project} skip={['packages', 'projectReferences', 'id', 'recordType']} />
+                <Fields rec={Object.fromEntries(Object.entries(project).filter(([k, v]) => !['packages', 'projectReferences', 'id', 'recordType'].includes(k) && !(Array.isArray(v) && v.some((x) => typeof x === 'object'))))} />
                 {card && (
                   <Button variant="link" size="sm" className="mt-1 h-auto px-0" onClick={() => st.set({ tab: 'docs', docPath: card.path })}>
                     Open context card
@@ -252,6 +252,39 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
                   })}
                 </div>
               </section>
+              {Array.isArray(project.usedPackageApi) && (project.usedPackageApi as unknown[]).length > 0 && (
+                <section>
+                  <SectionTitle count={(project.usedPackageApi as unknown[]).length}>Used package API</SectionTitle>
+                  <div className="overflow-hidden rounded-lg border">
+                    <table className="w-full text-xs">
+                      <thead className="bg-surface-1 text-2xs uppercase tracking-[0.06em] text-subtle-foreground">
+                        <tr>
+                          <th className="px-2.5 py-1.5 text-left font-medium">Package</th>
+                          <th className="px-2.5 py-1.5 text-right font-medium">Symbols</th>
+                          <th className="px-2.5 py-1.5 text-right font-medium">Usages</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(project.usedPackageApi as { package?: string; version?: string; symbols?: number; usages?: number }[])
+                          .slice()
+                          .sort((a, b) => (b.usages ?? 0) - (a.usages ?? 0))
+                          .map((p) => (
+                            <tr key={`${p.package}@${p.version}`} className="border-t border-border-subtle">
+                              <td className="max-w-0 px-2.5 py-1.5">
+                                <div className="truncate" title={p.package}>
+                                  {p.package}
+                                </div>
+                                <div className="font-mono text-2xs text-subtle-foreground">{p.version}</div>
+                              </td>
+                              <td className="px-2.5 py-1.5 text-right font-mono tabular-nums">{p.symbols ?? ''}</td>
+                              <td className="px-2.5 py-1.5 text-right font-mono tabular-nums">{p.usages ?? ''}</td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
               <Collapsible>
                 <CollapsibleTrigger className="group flex w-full items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground">
                   <ChevronRight className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />

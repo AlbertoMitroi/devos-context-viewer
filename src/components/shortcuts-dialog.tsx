@@ -18,13 +18,14 @@ const GROUPS: { title: string; items: [string[], string][] }[] = [
     items: [
       [['Scroll'], 'Zoom towards the cursor'],
       [['Drag'], 'Pan'],
-      [['Click'], 'Go into a circle'],
       [['←', '→', '↑', '↓'], 'Move between siblings'],
       [['Enter'], 'Go into the selection'],
       [['Backspace'], 'Go up'],
       [['F'], 'Show all projects'],
       [['I'], 'Toggle the details panel'],
-      [['Esc'], 'Close details, then go up'],
+      [['Esc'], 'Leave focus, then go up'],
+      [['Click'], 'Select: shows its connections (focus)'],
+      [['Click again'], 'Go into the selection'],
     ],
   },
   {

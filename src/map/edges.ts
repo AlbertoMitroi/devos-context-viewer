@@ -112,3 +112,34 @@ export function pointAt(path: Point[], t: number): Point {
   }
   return path[path.length - 1];
 }
+
+export interface Circle {
+  x: number;
+  y: number;
+  r: number;
+}
+
+/**
+ * Trims the part of a path inside a circle at its start and/or end, so a line leaves an open circle (the one
+ * you are inside) from its border instead of crossing its contents from the centre.
+ */
+export function clipPath(path: Point[], start?: Circle | null, end?: Circle | null): Point[] {
+  let pts = path;
+  const inside = (p: Point, c: Circle) => (p[0] - c.x) ** 2 + (p[1] - c.y) ** 2 < c.r * c.r;
+  const cut = (ps: Point[], c: Circle): Point[] => {
+    let i = 0;
+    while (i < ps.length - 1 && inside(ps[i], c)) i++;
+    if (i === 0) return ps;
+    // Binary search for the border between the last point inside and the first outside.
+    let [a, b] = [ps[i - 1], ps[i]];
+    for (let k = 0; k < 20; k++) {
+      const m: Point = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      if (inside(m, c)) a = m;
+      else b = m;
+    }
+    return [b, ...ps.slice(i)];
+  };
+  if (start) pts = cut(pts, start);
+  if (end) pts = cut([...pts].reverse(), end).reverse();
+  return pts.length >= 2 ? pts : path;
+}
