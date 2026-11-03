@@ -55,7 +55,7 @@ function generationId(dir) {
   return createHash('sha1').update(dir).digest('hex').slice(0, 12);
 }
 
-function describe(dir, entry) {
+export function describe(dir, entry) {
   const manifest = readJson(path.join(dir, 'manifest.json'));
   const remote = manifest?.repository?.remoteUrl ?? '';
   const repoName = remote ? remote.replace(/\.git$/, '').split(/[/:]/).pop() : path.basename(dir);
@@ -93,7 +93,7 @@ export function discover(cwd) {
   return [...seen.values()].map(({ dir, entry }) => ({ ...describe(dir, entry), _dir: dir, _source: entry.source }));
 }
 
-function listFiles(dir) {
+export function listFiles(dir) {
   const out = [];
   const walk = (rel) => {
     for (const name of readdirSync(path.join(dir, rel)).sort()) {

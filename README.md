@@ -68,6 +68,23 @@ Generations are listed from `viewer.config.json` (not committed) or `CV_GENERATI
 
 Production build: `npm run build && npm start -- --port 4600`.
 
+## Published site
+
+[albertomitroi.github.io/devos-context-viewer](https://albertomitroi.github.io/devos-context-viewer/) shows the five public lab generations (`devos-lab-core`, `-pricing`, `-intake`, `-leasing`, `-web`), rebuilt by [`.github/workflows/pages.yml`](.github/workflows/pages.yml) on every push to `main`, on demand, and on a `repository_dispatch` of type `context-published`:
+
+- `scripts/pull-lab-generations.sh <dir>` pulls `ghcr.io/albertomitroi/context-devos-lab-*:main-<engine>` with ORAS in Docker, checks `manifest.json` against the layer annotation `dev.devos.intelligence.manifest-sha256` and drops `index.sqlite` (the viewer does not read it).
+- `node scripts/static-index.mjs <dir>` writes `index.json` and one `<id>.files.json` per generation.
+- Without the local API, the viewer reads `generations/index.json` relative to the site (`VIEWER_BASE` sets the Vite base) and fetches repository sources from `raw.githubusercontent.com` at the generation's commit; when that fails, evidence shows the redacted snippet.
+
+To try the static build locally:
+
+```bash
+VIEWER_BASE=/devos-context-viewer/ npm run build
+scripts/pull-lab-generations.sh dist/generations
+node scripts/static-index.mjs dist/generations
+npx vite preview --base /devos-context-viewer/
+```
+
 ## Stack
 
 - React + TypeScript + Vite.

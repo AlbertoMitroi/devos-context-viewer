@@ -9,7 +9,7 @@ import type { Evidence, Span } from '@/model/types';
 
 const loc = (path: string, span?: Span) => (span ? `${path}:${span.startLine}:${span.startColumn}` : path);
 
-export function SourceContext({ path, store, span, radius = 6 }: { path: string; store?: string; span?: Span; radius?: number }) {
+export function SourceContext({ path, store, span, radius = 6, fallback }: { path: string; store?: string; span?: Span; radius?: number; fallback?: string }) {
   const [text, setText] = useState<string | null | undefined>(undefined);
   const source = useStore((s) => (s.activeId ? s.sources[s.activeId] : null));
   useEffect(() => {
@@ -23,9 +23,13 @@ export function SourceContext({ path, store, span, radius = 6 }: { path: string;
   if (text === undefined) return <Skeleton className="my-2 h-24 w-full" />;
   if (text === null)
     return (
-      <p className="my-2 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
-        Source not available. {store === 'generation' ? 'The generated file is missing from the generation.' : 'Add "source" to viewer.config.json to show repository files.'}
-      </p>
+      <div className="my-2 space-y-1">
+        <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+          Source not available. {store === 'generation' ? 'The generated file is missing from the generation.' : source?.sourceHint ?? 'Add "source" to viewer.config.json to show repository files.'}
+          {fallback && ' Showing the redacted snippet from the generation.'}
+        </p>
+        {fallback && <pre className="overflow-x-auto rounded-lg border bg-canvas px-3 py-1.5 font-mono text-xs">{fallback}</pre>}
+      </div>
     );
   const lines = text.split(/\r?\n/);
   const start = Math.max(1, (span?.startLine ?? 1) - radius);
@@ -59,7 +63,7 @@ function EvidenceItem({ e }: { e: Evidence }) {
         )}
       </div>
       {e.snippetText && !open && <pre className="overflow-x-auto rounded-lg border bg-canvas px-3 py-1.5 font-mono text-xs">{e.snippetText}</pre>}
-      {open && <SourceContext path={e.path} store={e.store} span={e.span} />}
+      {open && <SourceContext path={e.path} store={e.store} span={e.span} fallback={e.snippetText} />}
       <p className="font-mono text-[10.5px] text-muted-foreground">
         {e.extractor} · blob {String(e.blobId ?? '').slice(0, 10)}
         {e.generator ? ` · ${String(e.generator)}` : ''}

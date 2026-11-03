@@ -1,4 +1,5 @@
-// Where a generation's files come from: the local API server, or a folder the user picked in the browser.
+// Where a generation's files come from: the local API server, a static site built with generations/index.json,
+// or a folder the user picked in the browser.
 import type { GenerationFile, GenerationInfo } from './types';
 
 export type FileHandle = string | File; // URL for server files, File for picked folders
@@ -11,6 +12,8 @@ export interface DataSource {
   readText(path: string): Promise<string | null>;
   /** Source file for evidence; null when the store is not reachable. */
   readSource(path: string, store: string | undefined): Promise<string | null>;
+  /** Why repository sources are missing, shown when readSource returns null. */
+  sourceHint?: string;
 }
 
 async function textOrNull(res: Response): Promise<string | null> {
@@ -44,6 +47,56 @@ export function serverSource(info: GenerationInfo): DataSource {
       const res = await fetch(`${base}/source?path=${encodeURIComponent(p)}&store=${encodeURIComponent(store ?? 'repository')}`);
       return textOrNull(res);
     },
+  };
+}
+
+/** Raw file URL on GitHub for a public repository at a commit; null for other hosts. */
+export function githubRawUrl(remoteUrl: string | null, commit: string | null, path: string): string | null {
+  const m = remoteUrl?.match(/^(?:https:\/\/|git@)github\.com[/:]([^/]+)\/(.+?)(?:\.git)?\/?$/);
+  if (!m || !commit) return null;
+  return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${commit}/${path.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+/** Absolute URL of a file published with the site (generations/...), so the worker can fetch it too. */
+function siteUrl(rel: string): string {
+  return new URL(import.meta.env.BASE_URL + rel, location.href).href;
+}
+
+/** Generations published with a static build: generations/index.json, written by scripts/static-index.mjs. */
+export async function fetchStaticGenerations(): Promise<GenerationInfo[]> {
+  try {
+    const res = await fetch(siteUrl('generations/index.json'));
+    if (!res.ok) return [];
+    const list = (await res.json()) as GenerationInfo[];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return []; // absent, or the dev server answered with index.html
+  }
+}
+
+export function staticSource(info: GenerationInfo): DataSource {
+  const base = `generations/${encodeURIComponent(info.id)}`;
+  const fileUrl = (p: string) => siteUrl(`${base}/${p.split('/').map(encodeURIComponent).join('/')}`);
+  const sources = new Map<string, Promise<string | null>>();
+  const at = info.commit ? `${info.repository} at ${info.commit.slice(0, 7)}` : info.repository;
+  return {
+    info,
+    async listFiles() {
+      const res = await fetch(siteUrl(`${base}.files.json`));
+      return res.ok ? ((await res.json()) as GenerationFile[]) : [];
+    },
+    handle: fileUrl,
+    async readText(p) {
+      return textOrNull(await fetch(fileUrl(p)));
+    },
+    readSource(p, store) {
+      if (store === 'generation') return fetch(fileUrl(p)).then(textOrNull);
+      const url = githubRawUrl(info.repository, info.commit, p);
+      if (!url) return Promise.resolve(null);
+      if (!sources.has(url)) sources.set(url, fetch(url).then(textOrNull, () => null));
+      return sources.get(url)!;
+    },
+    sourceHint: `It could not be read from GitHub (${at ?? 'no repository in the manifest'}).`,
   };
 }
 

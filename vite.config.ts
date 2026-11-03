@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { createApiHandler } from './server/generations.mjs';
 
 export default defineConfig({
+  // GitHub Pages serves the site under /devos-context-viewer/ (.github/workflows/pages.yml sets VIEWER_BASE).
+  base: process.env.VIEWER_BASE ?? '/',
   plugins: [
     react(),
     {

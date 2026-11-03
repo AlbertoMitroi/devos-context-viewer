@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { buildGraphModel, ancestors, type GraphModel } from './model/graphModel';
 import { expandedForLevel, shortestPath, type Direction, type Focus, type ViewState } from './model/graphView';
 import { STRUCTURAL_KINDS } from './model/kinds';
-import { fetchServerGenerations, localSources, serverSource, type DataSource } from './model/source';
+import { fetchServerGenerations, fetchStaticGenerations, localSources, serverSource, staticSource, type DataSource } from './model/source';
 import type { Evidence, GenerationData, GenerationInfo } from './model/types';
 import type { WorkerRequest, WorkerResponse } from './model/load.worker';
 import type { MapLayout } from './model/mapLayout';
@@ -188,10 +188,13 @@ export const useStore = create<State>((set, get) => ({
 
   async refreshGenerations() {
     const server = await fetchServerGenerations();
+    // Without the API (a static site such as GitHub Pages), the generations published with the build.
+    const published = server.length ? [] : await fetchStaticGenerations();
     const sources = { ...get().sources };
     for (const g of server) sources[g.id] = serverSource(g);
+    for (const g of published) sources[g.id] = staticSource(g);
     const local = get().generations.filter((g) => g.local);
-    set({ generations: [...server, ...local], sources });
+    set({ generations: [...server, ...published, ...local], sources });
   },
 
   async addLocalFolder(files) {
