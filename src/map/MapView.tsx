@@ -1,13 +1,13 @@
 // Map view: a zoomable map of the repository. Projects are planets; zooming in opens them into namespaces,
 // types and members. Click to enter a circle, click its background to go up, arrows move between siblings.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import DeckGL, { type DeckGLRef } from '@deck.gl/react';
 import { OrthographicView, type PickingInfo } from '@deck.gl/core';
 import { PathLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers';
 import { CollisionFilterExtension } from '@deck.gl/extensions';
 import { useShallow } from 'zustand/react/shallow';
 import { ROOT, useStore } from '../store';
-import { buildMapLayout, colorIndex, computeFrame, locate, MAP_EXTENT, nearestSibling, zoomToFit, type Direction, type MapEdge, type MapNode } from '../model/mapLayout';
+import { buildMapLayout, colorIndex, computeFrame, locate, nearestSibling, zoomToFit, type Direction, type MapEdge, type MapNode } from '../model/mapLayout';
 import { ancestors } from '../model/graphModel';
 import { projectColor, relationColor, symbolColor, type RGB } from '../theme/palette';
 import { Camera, prefersReducedMotion, wheelZoomDelta, type Cam } from './camera';
@@ -19,6 +19,7 @@ import { MapControls } from './MapControls';
 import { InfoPanel } from './InfoPanel';
 import { FocusBar } from './FocusBar';
 import { fitLabel } from './labels';
+import { fitCamera, needsFit } from './viewport';
 import { projectRoles, roleOfNode } from '../model/roles';
 import { ROLE_SHAPE } from '../components/role-glyph';
 
@@ -81,7 +82,9 @@ export function MapView() {
   const [hover, setHover] = useState<{ x: number; y: number; node?: MapNode; edge?: MapEdge } | null>(null);
   const [fontsReady, setFontsReady] = useState(false);
   const [time, setTime] = useState(0);
-  const fitted = useRef(false);
+  /** The model the camera last fitted, and that camera, so each generation opens at its overview. */
+  const fitted = useRef<typeof model | null>(null);
+  const lastFit = useRef<Cam | null>(null);
 
   useEffect(() => () => camera.dispose(), [camera]);
   useEffect(() => {
@@ -99,36 +102,51 @@ export function MapView() {
   const roleOf = useCallback((n: MapNode) => roleOfNode(roles, n.id, n.kind), [roles]);
   const colorOf = useCallback((n: MapNode): RGB => (GROUP_KINDS.has(n.kind) ? rootColor.get(n.root) ?? [120, 130, 150] : symbolColor(n.kind)), [rootColor]);
 
-  useEffect(() => {
+  // The viewport, read from the element. Until a size is known the map neither fits nor draws.
+  const measure = useCallback(() => {
+    const el = wrap.current;
+    if (!el) return null;
+    const s = { width: el.clientWidth, height: el.clientHeight };
+    camera.size = s;
+    setSize((prev) => (prev.width === s.width && prev.height === s.height ? prev : s));
+    return s;
+  }, [camera]);
+  // Measured before the first paint, and again shortly after: the resizable panels apply their widths after the
+  // map mounts (the first reading is a few pixels wide), and ResizeObserver may deliver late or not at all in a
+  // background tab.
+  useLayoutEffect(() => {
     const el = wrap.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => {
-      const s = { width: el.clientWidth, height: el.clientHeight };
-      camera.size = s;
-      setSize(s);
-    });
+    measure();
+    const ro = new ResizeObserver(() => measure());
     ro.observe(el);
-    return () => ro.disconnect();
-  }, [camera]);
+    const timers = [0, 100, 400, 1200].map((ms) => window.setTimeout(measure, ms));
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      timers.forEach(clearTimeout);
+      window.removeEventListener('resize', measure);
+    };
+  }, [measure]);
 
-  const fitZoom = useCallback(() => Math.log2(Math.min(size.width, size.height) / (MAP_EXTENT * 1.04)), [size]);
-  const fitAll = useCallback(() => camera.flyTo({ x: 0, y: 0, zoom: fitZoom() }), [camera, fitZoom]);
+  const fitAll = useCallback(() => camera.flyTo(fitCamera(size)), [camera, size]);
   const flyInto = useCallback(
     (n: MapNode) => {
       const leaf = n.children.length === 0;
-      camera.flyTo({ x: n.x, y: n.y, zoom: zoomToFit(n, size.width, size.height, leaf ? 0.16 : 0.86) });
+      // A fresh reading: a deep link can arrive before the panels have settled.
+      const s = measure() ?? size;
+      camera.flyTo({ x: n.x, y: n.y, zoom: zoomToFit(n, s.width, s.height, leaf ? 0.16 : 0.86) });
     },
-    [camera, size],
+    [camera, size, measure],
   );
 
-  // First fit happens without animation; later layout changes fly.
-  useEffect(() => {
-    if (!size.width) return;
-    if (!fitted.current) {
-      camera.set({ x: 0, y: 0, zoom: fitZoom() });
-      fitted.current = true;
-    }
-  }, [size, camera, fitZoom]);
+  // Each generation opens at its overview, without animation; a deep link (#n=) flies from there.
+  useLayoutEffect(() => {
+    if (!needsFit(fitted.current, model, size, camera.cam, lastFit.current)) return;
+    camera.set(fitCamera(size));
+    lastFit.current = camera.cam;
+    fitted.current = model;
+  }, [size, camera, model]);
   useEffect(() => {
     if (fitTick) fitAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -145,6 +163,8 @@ export function MapView() {
   // Search, inspector links, breadcrumbs and browser history all arrive as centerOn.
   useEffect(() => {
     if (!centerOn || !size.width) return;
+    // The camera now goes where it was sent: a late resize no longer snaps it back to the overview.
+    lastFit.current = null;
     if (centerOn === ROOT) fitAll();
     else {
       const n = layoutNodeFor(centerOn);

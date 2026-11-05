@@ -203,9 +203,13 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async refreshGenerations() {
-    const server = await fetchServerGenerations();
+    // A build under a sub-path (GitHub Pages) is a static site: its published generations come first, and the
+    // local API, which it does not have, is asked only when none were published (no 404 on every load).
+    const staticFirst = import.meta.env.BASE_URL !== '/';
+    const early = staticFirst ? await fetchStaticGenerations() : [];
+    const server = early.length ? [] : await fetchServerGenerations();
     // Without the API (a static site such as GitHub Pages), the generations published with the build.
-    const published = server.length ? [] : await fetchStaticGenerations();
+    const published = early.length ? early : server.length ? [] : await fetchStaticGenerations();
     const sources = { ...get().sources };
     for (const g of server) sources[g.id] = serverSource(g);
     for (const g of published) sources[g.id] = staticSource(g);
