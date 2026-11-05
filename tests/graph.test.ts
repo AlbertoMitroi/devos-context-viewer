@@ -381,7 +381,7 @@ describe('palette lookups', () => {
   });
 });
 
-import { focusEdges, highlightTiers, tierOpacity } from '../src/map/focus';
+import { focusEdges } from '../src/map/focus';
 import { clipPath } from '../src/map/edges';
 
 describe('map focus', () => {
@@ -395,17 +395,6 @@ describe('map focus', () => {
     expect(focusEdges(edges, 'a', 'out')).toHaveLength(2);
     expect(focusEdges(edges, 'a', 'in')).toHaveLength(0);
     expect(focusEdges(edges, 'b', 'in')).toHaveLength(1);
-  });
-
-  it('lights the focus and its connections, containers faintly, nothing from hover', () => {
-    const layout = buildMapLayout(model, state());
-    const fe = focusEdges(computeFrame(model, layout, state(), { scale: 1e6, minX: -1e9, maxX: 1e9, minY: -1e9, maxY: 1e9 }).edges, RUN, 'both');
-    const t = highlightTiers(layout, RUN, fe)!;
-    expect(tierOpacity(t, RUN)).toBe(1);
-    expect(tierOpacity(t, REPO_GET)).toBe(1);
-    expect(tierOpacity(t, 'prj:core')).toBe(0.18);
-    expect(tierOpacity(t, 'prj:tests')).toBe(0.06);
-    expect(highlightTiers(layout, null, fe)).toBeNull();
   });
 
   it('clips a path where it leaves an open circle', () => {

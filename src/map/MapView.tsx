@@ -13,7 +13,7 @@ import { projectColor, relationColor, symbolColor, type RGB } from '../theme/pal
 import { Camera, prefersReducedMotion, wheelZoomDelta, type Cam } from './camera';
 import { OrbLayer, RegionLayer } from './OrbLayer';
 import { clipPath, createEdgeRouter, pointAt, type Point } from './edges';
-import { focusEdges, highlightTiers, tierOpacity } from './focus';
+import { focusEdges } from './focus';
 import { Minimap } from './Minimap';
 import { MapControls } from './MapControls';
 import { InfoPanel } from './InfoPanel';
@@ -393,16 +393,10 @@ export function MapView() {
   }, [selectedOnMap, crumbs, layout, camera, cam.zoom, navigate, goUp, size]);
 
   // Layers.
-  // Focus and context: inside a project, everything outside it recedes and loses its labels.
-  const focusRoot = crumbs[0] ?? null;
-  const ctxOf = (n: MapNode) => (!focusRoot || n.root === focusRoot ? 1 : 0.22);
-  // Focus tiers come from the selection only; hover never dims anything.
-  const tiers = useMemo(() => highlightTiers(layout, focusId, focused), [layout, focusId, focused]);
-  const litKey = focusId ? `${focusId}|${focused.length}|${focusDirection}` : '';
-  const hlOf = (n: MapNode) => tierOpacity(tiers, n.id);
-  const isEnd = (n: MapNode) => !!tiers && tiers.ends.has(n.id) && n.id !== focusId;
+  // Circles keep their colour whatever is hovered, selected or open: only the level-of-detail fade changes
+  // them. The selection and the hovered circle get an outline, and the focus lines carry the relations.
   const focusNode = focusId ? layout.nodes.get(focusId) : undefined;
-  const fadeOf = (n: MapNode) => (frame.fade.get(n.id) ?? 1) * ctxOf(n) * hlOf(n);
+  const fadeOf = (n: MapNode) => frame.fade.get(n.id) ?? 1;
   const openOf = (n: MapNode) => frame.openness.get(n.id) ?? 0;
   const regions = frame.drawn.filter((n) => openOf(n) > 0);
   const orbs = frame.drawn.filter((n) => openOf(n) < 1);
@@ -419,11 +413,11 @@ export function MapView() {
   const closedOf = (n: MapNode) => (shapeOf(n) ? Math.max(0, 1 - 2 * openOf(n)) : 1 - openOf(n));
 
   const labelSize = (n: MapNode) => Math.max(12, Math.min(18, (n.r * scale) / 4));
-  const closedLabels = orbs.filter((n) => openOf(n) < 0.05 && n.r * scale >= 22 && ctxOf(n) === 1);
+  const closedLabels = orbs.filter((n) => openOf(n) < 0.05 && n.r * scale >= 22);
   const truncate = (n: MapNode) => fitLabel(n.label, Math.max(3, Math.floor((1.7 * n.r * scale) / (labelSize(n) * 0.56))), n.r * scale > 34);
   // A region whose only child fills it would stack two pills; the child speaks for both (the breadcrumb has the parent).
   const swallowed = (n: MapNode) => n.children.length === 1 && (layout.nodes.get(n.children[0])?.r ?? 0) > n.r * 0.8 && frame.open.has(n.children[0]);
-  const pills = regions.filter((n) => openOf(n) > 0.35 && ctxOf(n) === 1 && !swallowed(n));
+  const pills = regions.filter((n) => openOf(n) > 0.35 && !swallowed(n));
   const symbolsText = (n: MapNode) => `${n.size.toLocaleString('en-US')} symbols`;
   const pillAlpha = (n: MapNode) => Math.min(1, (openOf(n) - 0.35) / 0.4) * fadeOf(n);
   const selectedEdgeKey = selection?.type === 'edge' ? selection.id : null;
@@ -444,7 +438,7 @@ export function MapView() {
       getLineWidth: 1,
       lineWidthUnits: 'pixels',
       pickable: true,
-      updateTriggers: { getFillColor: [frame, focusRoot, litKey], getLineColor: [frame, focusRoot, litKey] },
+      updateTriggers: { getFillColor: [frame], getLineColor: [frame] },
     }),
     new PathLayer<EdgeHalf>({
       id: 'edges',
@@ -472,15 +466,13 @@ export function MapView() {
         if (n.id === selectedOnMap) return [250, 250, 250, a8(255 * a)];
         if (hits.has(n.id)) return [250, 204, 21, a8(255 * a)];
         if (n.id === hoverId) return [250, 250, 250, a8(255 * Math.max(a, 0.5))];
-        // Connected circles get a bright rim so the endpoints of every line are obvious.
-        if (isEnd(n)) return [...lighten(lineOf(n), 0.6), a8(255 * a)] as RGBA;
         return [...lineOf(n), a8(200 * a)] as RGBA;
       },
-      getLineWidth: (n) => (n.id === selectedOnMap || hits.has(n.id) || n.id === hoverId ? 2.5 : isEnd(n) ? 2 : 1),
+      getLineWidth: (n) => (n.id === selectedOnMap || hits.has(n.id) || n.id === hoverId ? 2.5 : 1),
       lineWidthUnits: 'pixels',
       getShape: shapeOf,
       pickable: true,
-      updateTriggers: { getShape: [roles], getFillColor: [frame, rootColor, focusRoot, litKey, roles], getLineColor: [frame, selectedOnMap, hits, hoverId, focusRoot, litKey], getLineWidth: [selectedOnMap, hits, hoverId, litKey] },
+      updateTriggers: { getShape: [roles], getFillColor: [frame, rootColor, roles], getLineColor: [frame, selectedOnMap, hits, hoverId], getLineWidth: [selectedOnMap, hits, hoverId] },
     }),
     // Soft white halo around the selection (neutral accent), in the selection's shape.
     new OrbLayer<MapNode>({
@@ -537,7 +529,7 @@ export function MapView() {
       characterSet: 'auto',
       getTextAnchor: 'middle',
       getAlignmentBaseline: 'center',
-      updateTriggers: { getColor: [frame, focusRoot, litKey], getBackgroundColor: [frame, focusRoot, litKey], getBorderColor: [frame, focusRoot, litKey] },
+      updateTriggers: { getColor: [frame], getBackgroundColor: [frame], getBorderColor: [frame] },
     }),
     new TextLayer<MapNode>({
       id: 'region-subtitles',
@@ -555,7 +547,7 @@ export function MapView() {
       fontSettings: { sdf: true, buffer: 6 },
       getTextAnchor: 'middle',
       getAlignmentBaseline: 'center',
-      updateTriggers: { getColor: [frame, focusRoot, litKey] },
+      updateTriggers: { getColor: [frame] },
     }),
     new TextLayer<MapNode>({
       id: 'labels',
@@ -578,7 +570,7 @@ export function MapView() {
       collisionEnabled: true,
       getCollisionPriority: (n: MapNode) => n.r * scale,
       collisionTestProps: { sizeScale: 1.2 },
-      updateTriggers: { getText: [zq], getSize: [zq], getColor: [frame, focusRoot, litKey], getCollisionPriority: [zq] },
+      updateTriggers: { getText: [zq], getSize: [zq], getColor: [frame], getCollisionPriority: [zq] },
     } as never),
   ];
 
@@ -588,7 +580,7 @@ export function MapView() {
   const step = gridWorld * scale;
   const ox = (((size.width / 2 - cam.x * scale) % step) + step) % step;
   const oy = (((size.height / 2 - cam.y * scale) % step) + step) % step;
-  const gridAlpha = (Math.min(1, (step - 26) / 26) * 0.5 + 0.5) * (tiers ? 0.25 : 1);
+  const gridAlpha = Math.min(1, (step - 26) / 26) * 0.5 + 0.5;
 
   return (
     <div

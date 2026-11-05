@@ -63,10 +63,11 @@ export function buildMapLayout(model: GraphModel, s: ViewState): MapLayout {
   const h = hierarchy(rootData)
     .sum((d) => (d.children ? 0 : 1))
     .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
-  // Padding leaves room between siblings and a margin inside each parent for its label.
+  // Padding leaves room between siblings and a margin inside each parent for its label. Generous, so the
+  // map reads as separate circles rather than a packed mass.
   const laid = pack<Datum>()
     .size([MAP_EXTENT, MAP_EXTENT])
-    .padding((d) => (d.depth === 0 ? 60 : Math.max(1.5, d.r * 0.04)))(h);
+    .padding((d) => (d.depth === 0 ? 140 : Math.max(3, d.r * 0.09)))(h);
 
   const nodes = new Map<string, MapNode>();
   const order: MapNode[] = [];
