@@ -1,7 +1,10 @@
 // Builds the navigable model of one generation: a containment hierarchy (project > namespace > type > member,
 // package > namespace > type > member for metadata symbols) and a flat edge list with adjacency indexes.
+// A system generation adds one level on top: each input repository holds its projects and packages, and the
+// system links between repositories become edges.
 import { isKnownEdgeKind, MEMBER_KINDS, TYPE_KINDS } from './kinds';
-import type { Declaration, Entity, GenerationData, Json, Link, ProjectRecord, Relation } from './types';
+import { isSystem } from './parse';
+import type { Declaration, Entity, GenerationData, Json, Link, ProjectRecord, Relation, SystemInput } from './types';
 
 export type NodeTier = 'group' | 'entity';
 
@@ -14,8 +17,12 @@ export interface HNode {
   kind: string;
   tier: NodeTier;
   depth: number;
-  /** Top-level ancestor (project, package or group node). */
+  /** Project-level ancestor (project, package or group node); a repository of a system is not one. */
   root: string;
+  /** Top-level ancestor: the repository in a system generation, else the same as root. */
+  top: string;
+  /** Input repository of a system generation. */
+  input?: string;
   origin: string;
   isTest: boolean;
   entity?: Entity;
@@ -36,6 +43,9 @@ export interface Edge {
   known: boolean;
   relation?: Relation;
   link?: Link;
+  /** Where the map draws a side whose node is filtered out: the consumer of a package entity (system links). */
+  fromAlt?: string;
+  toAlt?: string;
 }
 
 export interface GraphModel {
@@ -53,15 +63,41 @@ export interface GraphModel {
   unknownKinds: string[];
   dangling: { count: number; samples: string[] };
   declarationsByEntity: Map<string, Declaration[]>;
+  /** Keyed by projectKey(input, path): the path alone for one repository. */
   projectByPath: Map<string, ProjectRecord>;
+  /** System generations: the input repositories by id; empty for one repository. */
+  inputs: Map<string, SystemInput>;
 }
 
+/** Key of a project path in a generation; paths repeat across the repositories of a system. */
+export const projectKey = (input: unknown, path: string) => (typeof input === 'string' && input ? `${input}/${path}` : path);
+
+/** Map node id of an input repository. */
+export const repositoryId = (input: string) => `repo:${input}`;
+
+/** Repository name of an input: the remote's last segment (devos-lab-core), else the input id. */
+export function inputName(input: SystemInput): string {
+  const remote = input.repository?.remoteUrl;
+  return remote ? remote.replace(/\.git$/, '').replace(/\/$/, '').split(/[/:]/).pop()! : input.id;
+}
+
+/** Inputs of a system generation: inputs.ndjson, else the manifest's inputs list. */
+export function systemInputs(data: GenerationData): SystemInput[] {
+  if (data.inputs.length) return data.inputs;
+  const listed = (data.manifest?.inputs as Json[] | undefined) ?? [];
+  return listed.map((i) => ({ ...i, id: String(i.id ?? i.name) }) as SystemInput);
+}
+
+/** A record's id without its input prefix: `leasing/dotnet:pkg:...` is `dotnet:pkg:...` of input leasing. */
+const localId = (id: string, input: string | undefined) => (input && id.startsWith(`${input}/`) ? id.slice(input.length + 1) : id);
+
 const PKG_RE = /^dotnet:pkg:([^@:]+)@([^:]+):([^:]*):/;
+const REPOSITORY = 'repository';
 
 const GROUP_PACKAGES = 'group:packages';
 const GROUP_UNASSIGNED = 'group:unassigned';
 
-const KIND_ORDER = ['project', 'package', 'group', 'pkgnamespace', 'namespace', 'interface', 'class', 'record', 'struct', 'enum', 'delegate', 'type'];
+const KIND_ORDER = ['repository', 'project', 'package', 'group', 'pkgnamespace', 'namespace', 'interface', 'class', 'record', 'struct', 'enum', 'delegate', 'type'];
 const kindRank = (k: string) => {
   const i = KIND_ORDER.indexOf(k);
   return i < 0 ? (MEMBER_KINDS.has(k) ? 50 : 40) : i;
@@ -81,6 +117,8 @@ export function isTestProjectPath(p: string) {
 
 function projectLabel(p: ProjectRecord) {
   const angularName = ((p.ext as Json | undefined)?.angular as Json | undefined)?.name;
+  // A repository-level project of a system input ('.') is named after the input.
+  if (p.path === '.' && !p.assemblyName && !angularName && typeof p.input === 'string') return p.input;
   return p.assemblyName || (typeof angularName === 'string' && angularName) || p.path.split('/').pop()!.replace(/\.[a-z]+proj$/i, '');
 }
 
@@ -101,17 +139,32 @@ export function buildGraphModel(data: GenerationData, opts: BuildOptions = {}): 
   for (const e of data.entities) entitiesById.set(e.id, e);
 
   const projectByPath = new Map<string, ProjectRecord>();
-  const add = (n: Omit<HNode, 'children' | 'depth' | 'root' | 'descendants'>) => {
-    const node: HNode = { ...n, children: [], depth: 0, root: n.id, descendants: 0 };
+  const add = (n: Omit<HNode, 'children' | 'depth' | 'root' | 'top' | 'descendants'>) => {
+    const node: HNode = { ...n, children: [], depth: 0, root: n.id, top: n.id, descendants: 0 };
     nodes.set(n.id, node);
     return node;
   };
 
+  // System generations: one top-level node per input repository.
+  const inputs = new Map<string, SystemInput>();
+  if (isSystem(data)) {
+    for (const i of systemInputs(data)) {
+      if (i.included === false || inputs.has(i.id)) continue;
+      inputs.set(i.id, i);
+      add({ id: repositoryId(i.id), parent: null, label: inputName(i), fullName: i.repository?.remoteUrl ?? i.id, kind: REPOSITORY, tier: 'group', origin: 'group', isTest: false, record: i, input: i.id });
+    }
+  }
+  const inputOf = (r: Json): string | undefined => (typeof r.input === 'string' && inputs.has(r.input) ? r.input : undefined);
+  const inRepository = (input: string | undefined) => (input ? repositoryId(input) : null);
+  const scoped = (input: string | undefined, id: string) => (input ? `${input}/${id}` : id);
+
   for (const p of data.projects) {
-    projectByPath.set(p.path, p);
+    const input = inputOf(p);
+    projectByPath.set(projectKey(input, p.path), p);
     add({
       id: p.id,
-      parent: null,
+      parent: inRepository(input),
+      input,
       label: projectLabel(p),
       fullName: p.path,
       kind: 'project',
@@ -122,43 +175,48 @@ export function buildGraphModel(data: GenerationData, opts: BuildOptions = {}): 
     });
   }
 
-  const ensureGroup = (id: string, label: string) =>
-    nodes.get(id) ?? add({ id, parent: null, label, fullName: label, kind: 'group', tier: 'group', origin: 'group', isTest: false });
+  // Groups and packages of a system input stay inside its repository, with ids scoped by the input.
+  const ensureGroup = (id: string, label: string, input?: string) => {
+    const gid = scoped(input, id);
+    return nodes.get(gid) ?? add({ id: gid, parent: inRepository(input), label, fullName: label, kind: 'group', tier: 'group', origin: 'group', isTest: false, input });
+  };
 
-  const ensurePackage = (pkg: string, version: string) => {
-    const id = `pkg:${pkg}@${version}`;
+  const ensurePackage = (pkg: string, version: string, input?: string) => {
+    const id = scoped(input, `pkg:${pkg}@${version}`);
     return (
       nodes.get(id) ??
-      add({ id, parent: ensureGroup(GROUP_PACKAGES, 'External packages').id, label: `${pkg} ${version}`, fullName: `${pkg}@${version}`, kind: 'package', tier: 'group', origin: 'metadata', isTest: false })
+      add({ id, parent: ensureGroup(GROUP_PACKAGES, 'External packages', input).id, label: `${pkg} ${version}`, fullName: `${pkg}@${version}`, kind: 'package', tier: 'group', origin: 'metadata', isTest: false, input })
     );
   };
 
   const ensurePkgNamespace = (pkgNode: HNode, ns: string) => {
-    const id = `pkgns:${pkgNode.fullName}:${ns}`;
-    return nodes.get(id) ?? add({ id, parent: pkgNode.id, label: ns, fullName: ns, kind: 'pkgnamespace', tier: 'group', origin: 'metadata', isTest: false });
+    const id = scoped(pkgNode.input, `pkgns:${pkgNode.fullName}:${ns}`);
+    return nodes.get(id) ?? add({ id, parent: pkgNode.id, label: ns, fullName: ns, kind: 'pkgnamespace', tier: 'group', origin: 'metadata', isTest: false, input: pkgNode.input });
   };
 
   // Entities: parent is the container when known, else the project, else the package namespace.
   for (const e of data.entities) {
+    const input = inputOf(e);
     const container = e.container ? entitiesById.get(e.container) : undefined;
     let parent: string | null = null;
     let isTest = false;
-    const project = e.project ? projectByPath.get(e.project) : undefined;
+    const project = e.project ? projectByPath.get(projectKey(input, e.project)) : undefined;
     if (project) isTest = isTestProjectPath(project.path);
     if (container && container.id !== e.id) parent = container.id;
     else if (project) parent = project.id;
     else {
-      const m = e.id.match(PKG_RE);
+      const m = localId(e.id, input).match(PKG_RE);
       if (m) {
-        const pkgNode = ensurePackage(m[1], m[2]);
+        const pkgNode = ensurePackage(m[1], m[2], input);
         parent = e.namespace ? ensurePkgNamespace(pkgNode, e.namespace).id : pkgNode.id;
       } else if (e.project) {
-        parent = ensureGroup(`group:project:${e.project}`, e.project).id;
+        parent = ensureGroup(`group:project:${e.project}`, e.project, input).id;
       } else {
-        parent = ensureGroup(GROUP_UNASSIGNED, 'Unassigned').id;
+        parent = ensureGroup(GROUP_UNASSIGNED, 'Unassigned', input).id;
       }
     }
     add({
+      input,
       id: e.id,
       parent,
       label: entityLabel(e, container),
@@ -227,24 +285,25 @@ export function buildGraphModel(data: GenerationData, opts: BuildOptions = {}): 
     });
   sortChildren(roots);
   roots.sort((a, b) => {
-    const order = (n: HNode) => (n.kind === 'project' ? (n.isTest ? 1 : 0) : n.kind === 'group' ? 3 : 2);
+    const order = (n: HNode) => (n.kind === 'project' || n.kind === REPOSITORY ? (n.isTest ? 1 : 0) : n.kind === 'group' ? 3 : 2);
     const na = nodes.get(a)!;
     const nb = nodes.get(b)!;
     return order(na) - order(nb) || na.label.localeCompare(nb.label);
   });
 
-  // Depth, root and descendant counts (iterative DFS).
-  const stack: [string, number, string][] = roots.map((r) => [r, 0, r]);
+  // Depth, root and descendant counts (iterative DFS). Children of a repository are roots of their own.
+  const stack: [string, number, string, string][] = roots.map((r) => [r, 0, r, r]);
   const post: string[] = [];
   while (stack.length) {
-    const [id, depth, root] = stack.pop()!;
+    const [id, depth, root, top] = stack.pop()!;
     const n = nodes.get(id)!;
     n.depth = depth;
     n.root = root;
+    n.top = top;
     if (n.kind !== 'project') n.isTest = nodes.get(root)!.isTest;
     sortChildren(n.children);
     post.push(id);
-    for (const c of n.children) stack.push([c, depth + 1, root]);
+    for (const c of n.children) stack.push([c, depth + 1, n.kind === REPOSITORY ? c : root, top]);
   }
   for (let i = post.length - 1; i >= 0; i--) {
     const n = nodes.get(post[i])!;
@@ -281,21 +340,51 @@ export function buildGraphModel(data: GenerationData, opts: BuildOptions = {}): 
     addEdge({ kind: r.kind, from: r.from, to: r.to, resolution: r.resolution ?? 'exact', usage: r.usage, synthetic: false, relation: r });
   }
   for (const p of data.projects) {
+    const input = inputOf(p);
     for (const ref of p.projectReferences ?? []) {
-      const target = projectByPath.get(ref);
+      const target = projectByPath.get(projectKey(input, ref));
       if (target) addEdge({ kind: 'project_reference', from: p.id, to: target.id, resolution: 'exact', synthetic: true });
     }
     for (const pkg of p.packages ?? []) {
       if (!pkg.direct) continue;
-      const pkgNode = ensurePackageForEdge(nodes, pkg.id, pkg.version);
+      const pkgNode = ensurePackageForEdge(nodes, scoped(input, `pkg:${pkg.id}@${pkg.version}`));
       if (pkgNode) addEdge({ kind: 'package_reference', from: p.id, to: pkgNode, resolution: 'exact', synthetic: true });
     }
   }
+  // A package entity of a system link is metadata, hidden by default: the map then draws that side at the
+  // project of its input that references the package directly, or at the input's repository.
+  const directUsers = new Map<string, string[]>();
+  for (const p of data.projects) {
+    const input = inputOf(p);
+    if (!input) continue;
+    for (const pkg of p.packages ?? []) if (pkg.direct) directUsers.set(`${input}/pkg:${pkg.id}@${pkg.version}`, [...(directUsers.get(`${input}/pkg:${pkg.id}@${pkg.version}`) ?? []), p.id]);
+  }
+  const consumerOf = (id: string): string | undefined => {
+    const n = nodes.get(id);
+    if (!n || n.origin !== 'metadata' || !n.input) return undefined;
+    let pkg: HNode | undefined = n;
+    while (pkg && pkg.kind !== 'package') pkg = pkg.parent ? nodes.get(pkg.parent) : undefined;
+    const users = pkg ? directUsers.get(pkg.id) ?? [] : [];
+    return users.length === 1 ? users[0] : repositoryId(n.input);
+  };
+  // A side of a system link is an entity, else the project it names; unresolved sides (to: null) stay off the map.
+  const sideNode = (side: unknown): string | null => {
+    if (!side || typeof side !== 'object') return null;
+    const s = side as Json;
+    if (typeof s.entity === 'string' && resolve(s.entity)) return s.entity;
+    const input = typeof s.input === 'string' ? s.input : undefined;
+    const project = typeof s.project === 'string' ? projectByPath.get(projectKey(input, s.project)) : undefined;
+    return project?.id ?? null;
+  };
   for (const l of data.links) {
-    const from = (l.from ?? l.source) as string | undefined;
-    const to = (l.to ?? l.target) as string | undefined;
+    const from = (l.from ?? l.source) as unknown;
+    const to = (l.to ?? l.target) as unknown;
     if (typeof from === 'string' && typeof to === 'string') {
       addEdge({ kind: l.kind, from, to, resolution: l.resolution ?? 'exact', synthetic: false, link: l });
+    } else if (l.scope === 'system') {
+      const a = sideNode(from);
+      const b = sideNode(to);
+      if (a && b) addEdge({ kind: l.kind, from: a, to: b, resolution: l.resolution ?? 'exact', synthetic: false, link: l, fromAlt: consumerOf(resolve(a)!), toAlt: consumerOf(resolve(b)!) });
     }
   }
 
@@ -333,12 +422,12 @@ export function buildGraphModel(data: GenerationData, opts: BuildOptions = {}): 
     dangling,
     declarationsByEntity,
     projectByPath,
+    inputs,
   };
 }
 
 /** Package nodes for direct package references exist only when the generation has symbols from that package. */
-function ensurePackageForEdge(nodes: Map<string, HNode>, pkg: string, version: string): string | null {
-  const id = `pkg:${pkg}@${version}`;
+function ensurePackageForEdge(nodes: Map<string, HNode>, id: string): string | null {
   return nodes.has(id) ? id : null;
 }
 

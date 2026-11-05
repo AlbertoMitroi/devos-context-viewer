@@ -1,0 +1,2 @@
+{"id":"api/snip:1","text":"public Order Get()"}
+{"id":"web/snip:1","text":"this.http.get('/orders')"}

@@ -1,0 +1,1 @@
+{"id":"pkr:1","recordType":"packageResolution","packageId":"Api.Core","version":"1.0.0","resolution":"exact","versionMatch":"exact","producer":{"input":"api","project":"src/Core/Core.csproj"},"consumer":{"input":"tool","projects":["src/Core/Core.csproj"]}}

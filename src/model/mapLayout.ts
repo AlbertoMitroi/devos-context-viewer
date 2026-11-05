@@ -16,6 +16,8 @@ export interface MapNode {
   kind: string;
   label: string;
   root: string;
+  /** Top-level ancestor on the map: the repository in a system generation. */
+  top: string;
   children: string[];
   /** Descendants that are part of the map. */
   size: number;
@@ -31,8 +33,17 @@ export interface MapLayout {
 
 export const MAP_EXTENT = 10000;
 
-/** Lays out every included node once. Filters that change membership rebuild it; zooming never does. */
-export function buildMapLayout(model: GraphModel, s: ViewState): MapLayout {
+/** Spacing between circles, as a factor of the default padding: the range of the Layers slider. */
+export const SPACING_MIN = 0.5;
+export const SPACING_MAX = 3;
+export const clampSpacing = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(SPACING_MAX, Math.max(SPACING_MIN, v)) : 1);
+
+/**
+ * Lays out every included node once. Filters that change membership rebuild it, and so does the spacing;
+ * zooming never does. `spacing` scales the padding between circles (1 is the default).
+ */
+export function buildMapLayout(model: GraphModel, s: ViewState, spacing = 1): MapLayout {
+  const k = clampSpacing(spacing);
   const excluded = makeExcluded(model, s);
   const included = new Map<string, boolean>();
   const isIncluded = (id: string): boolean => {
@@ -47,7 +58,7 @@ export function buildMapLayout(model: GraphModel, s: ViewState): MapLayout {
       // hang loose around namespaces; they stay out of the map (search and tables still find them).
       const orphanMember = MEMBER_KINDS.has(n.kind) && !TYPE_KINDS.has(model.nodes.get(n.parent ?? '')?.kind ?? '');
       if (n.tier === 'entity') res = !orphanMember && (s.entityKinds.has(n.kind) || child);
-      else if (n.kind === 'group' || n.kind === 'pkgnamespace') res = child;
+      else if (n.kind === 'group' || n.kind === 'pkgnamespace' || n.kind === 'repository') res = child;
       else res = true;
     }
     included.set(id, res);
@@ -64,10 +75,10 @@ export function buildMapLayout(model: GraphModel, s: ViewState): MapLayout {
     .sum((d) => (d.children ? 0 : 1))
     .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
   // Padding leaves room between siblings and a margin inside each parent for its label. Generous, so the
-  // map reads as separate circles rather than a packed mass.
+  // map reads as separate circles rather than a packed mass; the spacing factor scales both.
   const laid = pack<Datum>()
     .size([MAP_EXTENT, MAP_EXTENT])
-    .padding((d) => (d.depth === 0 ? 140 : Math.max(3, d.r * 0.09)))(h);
+    .padding((d) => (d.depth === 0 ? 140 : Math.max(3, d.r * 0.09)) * k)(h);
 
   const nodes = new Map<string, MapNode>();
   const order: MapNode[] = [];
@@ -84,6 +95,7 @@ export function buildMapLayout(model: GraphModel, s: ViewState): MapLayout {
       kind: n.kind,
       label: n.label,
       root: n.root,
+      top: n.top,
       children: (d.children ?? []).map((c) => c.data.id),
       size: (d.value ?? 1) - (d.children ? 0 : 1),
     };
@@ -92,6 +104,20 @@ export function buildMapLayout(model: GraphModel, s: ViewState): MapLayout {
   });
   order.sort((a, b) => a.depth - b.depth);
   return { nodes, roots: (laid.children ?? []).map((c) => c.data.id), order, extent: MAP_EXTENT };
+}
+
+/**
+ * Order in which map circles take a project colour: every top-level circle, and in a system generation the
+ * projects and packages inside each repository right after it. The sidebar and the minimap use the same.
+ */
+export function colorIndex(layout: MapLayout): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const id of layout.roots) {
+    out.set(id, out.size);
+    const n = layout.nodes.get(id)!;
+    if (n.kind === 'repository') for (const c of n.children) out.set(c, out.size);
+  }
+  return out;
 }
 
 export interface Viewport {
@@ -189,8 +215,8 @@ export function computeFrame(model: GraphModel, layout: MapLayout, s: ViewState,
   const agg = new Map<string, MapEdge>();
   for (const e of model.edges) {
     if (!edgePasses(e, s)) continue;
-    const a = rep(e.from);
-    const b = rep(e.to);
+    const a = rep(e.from) ?? (e.fromAlt ? rep(e.fromAlt) : null);
+    const b = rep(e.to) ?? (e.toAlt ? rep(e.toAlt) : null);
     if (!a || !b || a === b || isAncestor(a, b) || isAncestor(b, a)) continue;
     const key = a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`;
     let v = agg.get(key);

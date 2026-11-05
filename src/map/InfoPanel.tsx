@@ -12,7 +12,7 @@ import { HoverDetails } from './HoverCard';
 import { RoleGlyph } from '@/components/role-glyph';
 import { ROLE_HINT, ROLE_LABEL, ROLES, roleOfNode, type Role } from '@/model/roles';
 
-const GROUPS = new Set(['project', 'package', 'group', 'pkgnamespace']);
+const GROUPS = new Set(['repository', 'project', 'package', 'group', 'pkgnamespace']);
 
 export interface HoverState {
   x: number;

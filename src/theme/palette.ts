@@ -71,9 +71,13 @@ const RELATION: Record<string, [number, number]> = {
   overrides: [330, 0.12],
   'di.registers': [350, 0.12],
   'di.consumes': [15, 0.12],
+  // Links: messaging, HTTP, real time and packages read apart on the system map.
   consumes_contract: [75, 0.13],
-  configured_route: [95, 0.12],
+  configured_route: [225, 0.13],
   possible_communication: [50, 0.13],
+  dispatches_to: [110, 0.1],
+  pushes_to: [135, 0.14],
+  implemented_by_package: [320, 0.08],
   project_reference: [260, 0.02],
   package_reference: [260, 0.02],
   contains: [260, 0.015],
@@ -88,7 +92,7 @@ export function relationColor(kind: string): RGB {
   return oklch(0.74, 0.1, Math.abs(h) % 360);
 }
 
-const NEUTRAL_KINDS: Record<string, number> = { project: 0.86, package: 0.62, group: 0.55, pkgnamespace: 0.6 };
+const NEUTRAL_KINDS: Record<string, number> = { repository: 0.92, project: 0.86, package: 0.62, group: 0.55, pkgnamespace: 0.6 };
 
 export function symbolColor(kind: string): RGB {
   const l = own(NEUTRAL_KINDS, kind);
@@ -114,6 +118,7 @@ export const KIND_GLYPH: Record<string, string> = {
   operator: 'O',
   project: 'P',
   package: 'K',
+  repository: 'G',
 };
 
 export const rgbCss = ([r, g, b]: RGB, a = 1) => (a === 1 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${a})`);

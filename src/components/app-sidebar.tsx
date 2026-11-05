@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { BookOpen, ChartColumn, ChevronRight, ChevronsUpDown, FolderOpen, GitCommitHorizontal, Keyboard, Map as MapIcon, Network, RefreshCw, Table2 } from 'lucide-react';
+import { BookOpen, Boxes, ChartColumn, ChevronRight, ChevronsUpDown, FolderOpen, GitCommitHorizontal, Keyboard, Map as MapIcon, Network, RefreshCw, Table2 } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -20,6 +20,9 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useStore, type Tab } from '@/store';
 import { projectColor, rgbCss } from '@/theme/palette';
+import { shortCommit } from '@/model/source';
+import { colorIndex } from '@/model/mapLayout';
+import type { HNode } from '@/model/graphModel';
 
 const NAV: { id: Tab; label: string; icon: typeof MapIcon; hint: string }[] = [
   { id: 'map', label: 'Map', icon: MapIcon, hint: 'M' },
@@ -39,10 +42,12 @@ function GenerationSwitcher() {
   const addLocal = useStore((s) => s.addLocalFolder);
   const file = useRef<HTMLInputElement>(null);
   const active = generations.find((g) => g.id === activeId);
+  // System generations (the whole lab) come first, above the repositories they combine.
   const byRepo = useMemo(() => {
     const m = new Map<string, typeof generations>();
     for (const g of generations) m.set(g.repoKey, [...(m.get(g.repoKey) ?? []), g]);
-    return [...m.entries()];
+    const system = (gens: typeof generations) => (gens.some((g) => g.generationType === 'system') ? 0 : 1);
+    return [...m.entries()].sort((a, b) => system(a[1]) - system(b[1]));
   }, [generations]);
 
   return (
@@ -59,7 +64,9 @@ function GenerationSwitcher() {
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">{active ? repoName(active.repoKey) : 'Context Viewer'}</span>
-                <span className="truncate font-mono text-2xs text-subtle-foreground">{active ? `${active.commit?.slice(0, 7) ?? '?'} · ${active.folder}${active.status ? ` · ${active.status}` : ''}` : 'No generation'}</span>
+                <span className="truncate font-mono text-2xs text-subtle-foreground">
+                  {active ? `${active.generationType === 'system' ? `system of ${active.inputs?.length ?? '?'}` : shortCommit(active.commit)} · ${active.folder}${active.status ? ` · ${active.status}` : ''}` : 'No generation'}
+                </span>
               </div>
               <ChevronsUpDown className="ml-auto" />
             </SidebarMenuButton>
@@ -70,9 +77,9 @@ function GenerationSwitcher() {
                 <DropdownMenuLabel className="text-xs text-muted-foreground">{repoName(repo)}</DropdownMenuLabel>
                 {gens.map((g) => (
                   <DropdownMenuItem key={g.id} onClick={() => open(g.id)} className="gap-2 p-2">
-                    <GitCommitHorizontal className="size-4 text-muted-foreground" />
-                    <span className="font-mono text-xs">{g.commit?.slice(0, 7) ?? '?'}</span>
-                    <span className="flex-1 truncate">{g.folder}</span>
+                    {g.generationType === 'system' ? <Boxes className="size-4 text-muted-foreground" /> : <GitCommitHorizontal className="size-4 text-muted-foreground" />}
+                    <span className="font-mono text-xs">{g.generationType === 'system' ? 'system' : shortCommit(g.commit)}</span>
+                    <span className="flex-1 truncate">{g.generationType === 'system' ? `${g.inputs?.length ?? '?'} repositories` : g.folder}</span>
                     {g.modified ? <span className="text-2xs text-subtle-foreground">{new Date(g.modified).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span> : null}
                     {g.status && (
                       <Badge variant="outline" className={g.status === 'complete' ? 'border-emerald-500/40 text-emerald-400' : 'border-amber-500/40 text-amber-400'}>
@@ -122,13 +129,21 @@ function ProjectList() {
     return out;
   }, [model]);
   if (!model) return null;
-  const roots = (layout?.roots ?? model.roots).map((id, i) => ({ n: model.nodes.get(id)!, i })).filter(({ n }) => n && n.kind === 'project');
+  // Same colours as the map: colorIndex when the map has laid out, else the order of the roots.
+  const colors = layout ? colorIndex(layout) : new Map(model.roots.map((id, i) => [id, i]));
+  const item = (id: string, i: number) => ({ n: model.nodes.get(id)!, i: colors.get(id) ?? i });
+  const roots = (layout?.roots ?? model.roots).map(item).filter(({ n }) => n && n.kind === 'project');
   const match = ({ n }: { n: { label: string } }) => n.label.toLowerCase().includes(q.toLowerCase());
-  const groups: { title: string; open: boolean; items: typeof roots }[] = [
-    { title: 'Services', open: true, items: roots.filter(({ n }) => !n.isTest && services.has(n.id)) },
-    { title: 'Libraries', open: true, items: roots.filter(({ n }) => !n.isTest && !services.has(n.id)) },
-    { title: 'Tests', open: false, items: roots.filter(({ n }) => n.isTest) },
-  ];
+  const repositories = (layout?.roots ?? model.roots).map((id) => model.nodes.get(id)!).filter((n) => n?.kind === 'repository');
+  const childrenOf = (r: HNode) => (layout?.nodes.get(r.id)?.children ?? r.children).map(item).filter(({ n }) => n?.kind === 'project');
+  // A system lists its projects per repository; one repository groups them by role.
+  const groups: { title: string; open: boolean; items: typeof roots; id?: string }[] = repositories.length
+    ? repositories.map((r) => ({ title: r.label, id: r.id, open: true, items: childrenOf(r) }))
+    : [
+        { title: 'Services', open: true, items: roots.filter(({ n }) => !n.isTest && services.has(n.id)) },
+        { title: 'Libraries', open: true, items: roots.filter(({ n }) => !n.isTest && !services.has(n.id)) },
+        { title: 'Tests', open: false, items: roots.filter(({ n }) => n.isTest) },
+      ];
   return (
     <>
       <div className="px-3 pb-1 pt-2 group-data-[collapsible=icon]:hidden">
@@ -154,7 +169,7 @@ function ProjectList() {
                       <SidebarMenuItem key={n.id}>
                         <SidebarMenuButton
                           size="sm"
-                          isActive={path[0] === n.id}
+                          isActive={path[0] === n.id || (!!g.id && path[0] === g.id && path[1] === n.id)}
                           className="relative h-7 data-[active=true]:before:absolute data-[active=true]:before:-left-2 data-[active=true]:before:top-1.5 data-[active=true]:before:h-4 data-[active=true]:before:w-0.5 data-[active=true]:before:rounded-full data-[active=true]:before:bg-foreground"
                           onClick={() => {
                             set({ tab: 'map' });

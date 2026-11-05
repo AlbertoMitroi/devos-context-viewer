@@ -9,21 +9,25 @@ export interface CoverageRow {
   path: string;
   state: string;
   name?: string;
+  input?: string;
 }
 
 export function coverageRows(data: GenerationData): CoverageRow[] {
   const raw = (((data.manifest?.coverage as Json | undefined)?.projects as Json[] | undefined) ?? []).filter((c) => c && typeof c === 'object');
   const byId = new Map(data.projects.map((p) => [p.id, p]));
-  const byPath = new Map(data.projects.map((p) => [p.path, p]));
+  // A system's rows carry `input`; paths repeat across inputs and Angular rows name the project `{input}/{path}`.
+  const key = (input: unknown, path: string) => (typeof input === 'string' ? `${input}/${path}` : path);
+  const byPath = new Map(data.projects.map((p) => [key(p.input, p.path), p]));
   return raw.map((c) => {
     const ref = c.project === undefined ? '' : String(c.project);
     const path = c.path === undefined ? undefined : String(c.path);
-    const record = byId.get(ref) ?? byPath.get(path ?? ref);
+    const record = byId.get(ref) ?? byPath.get(key(c.input, path ?? ref)) ?? (typeof c.input === 'string' ? byPath.get(ref) : undefined);
     return {
       id: record?.id ?? ref,
       path: path ?? record?.path ?? ref,
       state: String(c.state ?? c.loadMode ?? 'unknown'),
       name: typeof c.name === 'string' ? c.name : undefined,
+      input: typeof c.input === 'string' ? c.input : undefined,
     };
   });
 }

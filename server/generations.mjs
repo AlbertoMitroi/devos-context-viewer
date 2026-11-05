@@ -18,7 +18,11 @@ function readJson(file) {
   }
 }
 
-/** Reads viewer.config.json and CV_GENERATIONS into a list of { path, label?, source? } entries. */
+/**
+ * Reads viewer.config.json and CV_GENERATIONS into a list of { path, label?, source?, sources? } entries.
+ * For a system generation, `source` is the folder holding the input repositories (each found by its repository
+ * name, e.g. devos-lab-core, or by the input id) and `sources` maps an input id to its checkout.
+ */
 export function loadConfig(cwd) {
   const entries = [];
   const config = readJson(path.join(cwd, CONFIG_FILE)) ?? {};
@@ -31,7 +35,12 @@ export function loadConfig(cwd) {
   for (const p of (process.env.CV_GENERATIONS ?? '').split(/[,;]/).map((s) => s.trim()).filter(Boolean)) {
     entries.push({ path: p, root: !isGeneration(path.resolve(cwd, p)) });
   }
-  return entries.map((e) => ({ ...e, path: path.resolve(cwd, e.path), source: e.source ? path.resolve(cwd, e.source) : undefined }));
+  return entries.map((e) => ({
+    ...e,
+    path: path.resolve(cwd, e.path),
+    source: e.source ? path.resolve(cwd, e.source) : undefined,
+    sources: e.sources ? Object.fromEntries(Object.entries(e.sources).map(([k, v]) => [k, path.resolve(cwd, String(v))])) : undefined,
+  }));
 }
 
 function scanRoot(root, depth) {
@@ -55,11 +64,33 @@ function generationId(dir) {
   return createHash('sha1').update(dir).digest('hex').slice(0, 12);
 }
 
+function readNdjson(file) {
+  try {
+    return readFileSync(file, 'utf8')
+      .split('\n')
+      .filter((l) => l.trim())
+      .map((l) => JSON.parse(l));
+  } catch {
+    return [];
+  }
+}
+
+const remoteName = (remote) => remote.replace(/\.git$/, '').replace(/\/$/, '').split(/[/:]/).pop();
+
+/** Inputs of a system generation with their repository and commit: inputs.ndjson, else manifest.inputs. */
+function systemInputs(dir, manifest) {
+  const records = readNdjson(path.join(dir, 'inputs.ndjson'));
+  const list = records.length ? records : (manifest?.inputs ?? []).map((i) => ({ ...i, id: i.id ?? i.name }));
+  return list.filter((i) => i.included !== false).map((i) => ({ id: String(i.id), repository: i.repository?.remoteUrl ?? null, commit: i.commit ?? null }));
+}
+
 export function describe(dir, entry) {
   const manifest = readJson(path.join(dir, 'manifest.json'));
+  const system = manifest?.generationType === 'system';
   const remote = manifest?.repository?.remoteUrl ?? '';
-  const repoName = remote ? remote.replace(/\.git$/, '').split(/[/:]/).pop() : path.basename(dir);
-  const commit = manifest?.commit ? String(manifest.commit).slice(0, 7) : '';
+  // A system has no repository of its own: it is named by its label or folder (devos-lab).
+  const repoName = system ? entry.label ?? path.basename(dir) : remote ? remoteName(remote) : path.basename(dir);
+  const commit = manifest?.commit && !system ? String(manifest.commit).slice(0, 7) : '';
   let modified = 0;
   try {
     modified = statSync(path.join(dir, existsSync(path.join(dir, 'manifest.json')) ? 'manifest.json' : 'graph')).mtimeMs;
@@ -70,15 +101,29 @@ export function describe(dir, entry) {
     id: generationId(dir),
     label: entry.label ?? (commit ? `${repoName} @ ${commit}` : repoName),
     repository: remote || null,
-    repoKey: remote || repoName,
+    repoKey: system ? repoName : remote || repoName,
     commit: manifest?.commit ?? null,
     status: manifest?.status ?? null,
     schemaVersion: manifest?.schemaVersion ?? null,
     path: dir,
     folder: path.basename(dir),
-    hasSource: Boolean(entry.source),
+    hasSource: Boolean(entry.source || entry.sources),
     modified,
+    ...(system ? { generationType: 'system', inputs: systemInputs(dir, manifest) } : {}),
   };
+}
+
+/** Checkout of a system input: `sources[input]`, else a folder under `source` named like its repository or input. */
+function inputSource(gen, input) {
+  if (gen._sources?.[input]) return gen._sources[input];
+  if (!gen._source) return null;
+  const i = gen.inputs?.find((x) => x.id === input);
+  const names = [i?.repository ? remoteName(i.repository) : null, input].filter(Boolean);
+  for (const name of names) {
+    const dir = safeJoin(gen._source, name);
+    if (dir && existsSync(dir) && statSync(dir).isDirectory()) return dir;
+  }
+  return null;
 }
 
 /** Lists all generations reachable from the configuration, de-duplicated by directory. */
@@ -90,7 +135,7 @@ export function discover(cwd) {
       if (!seen.has(dir)) seen.set(dir, { dir, entry: { ...entry, label: entry.root ? undefined : entry.label } });
     }
   }
-  return [...seen.values()].map(({ dir, entry }) => ({ ...describe(dir, entry), _dir: dir, _source: entry.source }));
+  return [...seen.values()].map(({ dir, entry }) => ({ ...describe(dir, entry), _dir: dir, _source: entry.source, _sources: entry.sources }));
 }
 
 export function listFiles(dir) {
@@ -139,7 +184,7 @@ export function createApiHandler({ cwd }) {
     try {
       const gens = discover(cwd);
       if (url.pathname === '/api/generations') {
-        return send(res, 200, gens.map(({ _dir, _source, ...g }) => g));
+        return send(res, 200, gens.map(({ _dir, _source, _sources, ...g }) => g));
       }
       const m = url.pathname.match(/^\/api\/g\/([0-9a-f]+)\/(files|file|source)$/);
       const gen = m && gens.find((g) => g.id === m[1]);
@@ -148,6 +193,13 @@ export function createApiHandler({ cwd }) {
       if (m[2] === 'files') return send(res, 200, listFiles(gen._dir));
       if (m[2] === 'file') return streamFile(res, safeJoin(gen._dir, rel));
       const store = url.searchParams.get('store') ?? 'repository';
+      const input = url.searchParams.get('input');
+      if (input) {
+        // Generated files of an input are not copied into a system generation.
+        const root = store === 'generation' ? null : inputSource(gen, input);
+        if (!root) return send(res, 404, { error: `no source checkout found for input ${input}` });
+        return streamFile(res, safeJoin(root, rel));
+      }
       if (store === 'generation') return streamFile(res, safeJoin(gen._dir, rel));
       if (!gen._source) return send(res, 404, { error: 'no source root configured for this generation' });
       return streamFile(res, safeJoin(gen._source, rel));

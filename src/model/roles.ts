@@ -1,7 +1,7 @@
 // Role of each project on the map (service, front end, library, ...), derived from what the engines already
 // emit: entry points, UI base types, Aspire hosting, test frameworks and the Angular project type. The
 // contract has no role field yet, so this is a reading of the generation, not part of it.
-import { isTestProjectPath } from './graphModel';
+import { isTestProjectPath, projectKey } from './graphModel';
 import type { GenerationData, Json, ProjectRecord } from './types';
 
 export type Role = 'service' | 'frontend' | 'library' | 'host' | 'test' | 'package';
@@ -38,16 +38,18 @@ const angularOf = (p: ProjectRecord) => ((p.ext as Json | undefined)?.angular as
 
 /** Roles of every project record, keyed by project id. */
 export function projectRoles(data: GenerationData): Map<string, Role> {
-  const byPath = new Map(data.projects.map((p) => [p.path, p]));
+  // Keyed by projectKey: in a system generation the same path can name a project in several inputs.
+  const byPath = new Map(data.projects.map((p) => [projectKey(p.input, p.path), p]));
   const entityProject = new Map<string, string>();
   const entry = new Set<string>();
   const maui = new Set<string>();
   for (const e of data.entities) {
-    if (!e.project || !byPath.has(e.project)) continue;
-    entityProject.set(e.id, e.project);
+    const key = e.project ? projectKey(e.input, e.project) : '';
+    if (!key || !byPath.has(key)) continue;
+    entityProject.set(e.id, key);
     if ((e.origin ?? 'source') !== 'source') continue;
-    if (e.kind === 'method' && ENTRY_METHODS.has(e.name)) entry.add(e.project);
-    if (e.kind === 'class' && e.name === 'MauiProgram') maui.add(e.project);
+    if (e.kind === 'method' && ENTRY_METHODS.has(e.name)) entry.add(key);
+    if (e.kind === 'class' && e.name === 'MauiProgram') maui.add(key);
   }
   const ui = new Set<string>();
   for (const r of data.relations) {
@@ -60,12 +62,13 @@ export function projectRoles(data: GenerationData): Map<string, Role> {
   for (const p of data.projects) {
     const direct = (p.packages ?? []).filter((k) => k.direct).map((k) => k.id);
     const angular = angularOf(p);
+    const key = projectKey(p.input, p.path);
     let role: Role;
     if (isTestProjectPath(p.path) || direct.some((id) => TEST_PACKAGE.test(id))) role = 'test';
     else if (angular) role = angular.projectType === 'application' ? 'frontend' : 'library';
-    else if (maui.has(p.path)) role = 'frontend';
-    else if (entry.has(p.path) && direct.some((id) => HOST_PACKAGE.test(id))) role = 'host';
-    else if (entry.has(p.path)) role = ui.has(p.path) ? 'frontend' : 'service';
+    else if (maui.has(key)) role = 'frontend';
+    else if (entry.has(key) && direct.some((id) => HOST_PACKAGE.test(id))) role = 'host';
+    else if (entry.has(key)) role = ui.has(key) ? 'frontend' : 'service';
     else role = 'library';
     roles.set(p.id, role);
   }

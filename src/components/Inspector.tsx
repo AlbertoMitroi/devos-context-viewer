@@ -9,10 +9,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Kbd } from '@/components/ui/kbd';
 import { KindGlyph } from '@/components/kind-glyph';
-import { ancestors, type Edge, type GraphModel, type HNode } from '@/model/graphModel';
+import { ancestors, projectKey, type Edge, type GraphModel, type HNode } from '@/model/graphModel';
 import { edgeColor, kindLabel } from '@/model/kinds';
 import { useStore } from '@/store';
-import { EvidenceList, SourceContext } from './Evidence';
+import type { Json } from '@/model/types';
+import { EvidenceList, inputOf, SourceContext } from './Evidence';
 import { CopyButton, KeyValue } from './blocks';
 
 const CALLS = ['calls_declared_target', 'possible_runtime_target'];
@@ -42,6 +43,67 @@ function NodeLink({ id, model }: { id: string; model: GraphModel }) {
       <KindGlyph kind={n.kind} />
       <span className="truncate">{n.label}</span>
     </button>
+  );
+}
+
+/** One side of a system link: the input repository, then the symbol (or the project) it resolved to. */
+function LinkSide({ side, model, title }: { side: unknown; model: GraphModel; title: string }) {
+  const s = (side && typeof side === 'object' ? side : null) as Json | null;
+  const entity = typeof s?.entity === 'string' ? s.entity : null;
+  const project = typeof s?.project === 'string' ? model.projectByPath.get(projectKey(s.input, s.project)) : undefined;
+  const target = entity && (model.nodes.has(entity) || model.alias.has(entity)) ? (model.alias.get(entity) ?? entity) : project?.id;
+  return (
+    <div className="min-w-0 space-y-0.5">
+      <p className="text-2xs uppercase tracking-[0.06em] text-subtle-foreground">{title}</p>
+      {!s ? (
+        <p className="px-1.5 text-sm text-muted-foreground">Not found in the system.</p>
+      ) : (
+        <div className="flex min-w-0 items-center gap-1.5">
+          {typeof s.input === 'string' && <span className="shrink-0 font-mono text-xs text-subtle-foreground">[{s.input}]</span>}
+          {target ? <NodeLink id={target} model={model} /> : <span className="truncate font-mono text-xs">{String(s.entity ?? s.project ?? s.observation ?? '')}</span>}
+          {typeof s.kind === 'string' && (
+            <Badge variant="outline" className="ml-auto h-5 shrink-0 px-1.5 text-[10px] font-normal">
+              {s.kind}
+            </Badge>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A link's resolution and match: what the federation matched across repositories, and why. */
+export function LinkDetails({ link, model }: { link: Json; model: GraphModel }) {
+  const summary = Object.fromEntries(['kind', 'via', 'scope', 'resolution', 'versionMatch', 'reason'].filter((k) => link[k] !== undefined && link[k] !== null).map((k) => [k, link[k]]));
+  const match = link.match && typeof link.match === 'object' ? (link.match as Json) : null;
+  const pkg = link.package && typeof link.package === 'object' ? (link.package as Json) : null;
+  const through = (link.from as Json | null | undefined)?.through as Json | undefined;
+  return (
+    <div className="space-y-3">
+      <Fields rec={summary} />
+      {match && (
+        <div>
+          <p className="mb-1 text-2xs uppercase tracking-[0.06em] text-subtle-foreground">Match</p>
+          <Fields rec={match} />
+        </div>
+      )}
+      {pkg && (
+        <div>
+          <p className="mb-1 text-2xs uppercase tracking-[0.06em] text-subtle-foreground">Package</p>
+          <Fields rec={pkg} />
+        </div>
+      )}
+      {through && (
+        <div>
+          <p className="mb-1 text-2xs uppercase tracking-[0.06em] text-subtle-foreground">Through package</p>
+          <Fields rec={through} />
+        </div>
+      )}
+      <div className="grid gap-2">
+        <LinkSide side={link.from} model={model} title="From" />
+        <LinkSide side={link.to} model={model} title="To" />
+      </div>
+    </div>
   );
 }
 
@@ -77,6 +139,7 @@ function RelationRow({ e, other, model }: { e: Edge; other: string; model: Graph
       </div>
       <CollapsibleContent className="ml-7 mt-1 space-y-3 border-l pb-2 pl-3">
         {e.relation && <Fields rec={e.relation} skip={['evidence', 'from', 'to', 'id']} />}
+        {e.link && <LinkDetails link={e.link} model={model} />}
         <EvidenceList ids={ev} limit={5} />
       </CollapsibleContent>
     </Collapsible>
@@ -139,8 +202,9 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [node, model]);
   const project = node.kind === 'project' ? node.record : null;
+  const repository = node.kind === 'repository' ? model.inputs.get(node.input ?? '') : undefined;
   const contexts = project ? data.contexts.filter((c) => c.projectId === node.id || c.project === node.fullName) : [];
-  const diags = data.diagnostics.filter((d) => d.scope === node.fullName || (project && d.scope === project.path));
+  const diags = data.diagnostics.filter((d) => (d.scope === node.fullName || (project && d.scope === project.path)) && (!node.input || d.input === node.input));
   const card = project ? data.files.find((f) => f.path.startsWith('context/projects/') && f.path.includes(`/${node.label}-`)) : null;
   const focus = (direction: 'in' | 'out' | 'both', kinds?: string[], label?: string) => st.setFocus({ ids: [node.id], depth: kinds ? 3 : 2, direction, kinds, label: label ?? node.label });
   const summary = node.entity ? Object.fromEntries(Object.entries(node.entity).filter(([k]) => ['kind', 'accessibility', 'modifiers', 'origin', 'project', 'assembly', 'namespace', 'signature'].includes(k))) : null;
@@ -232,6 +296,12 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
               <Fields rec={summary} />
             </section>
           )}
+          {repository && (
+            <section>
+              <SectionTitle>Repository</SectionTitle>
+              <Fields rec={Object.fromEntries(Object.entries(repository).filter(([k]) => !['recordType'].includes(k)))} mono={['commit', 'manifestSha256']} />
+            </section>
+          )}
           {project && (
             <>
               <section>
@@ -247,7 +317,7 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
                 <SectionTitle count={(project.projectReferences as string[] | undefined)?.length ?? 0}>Project references</SectionTitle>
                 <div className="space-y-0.5">
                   {((project.projectReferences as string[]) ?? []).map((p) => {
-                    const t = model.projectByPath.get(p);
+                    const t = model.projectByPath.get(projectKey(project.input, p));
                     return t ? <NodeLink key={p} id={t.id} model={model} /> : <p key={p} className="font-mono text-xs text-muted-foreground">{p}</p>;
                   })}
                 </div>
@@ -387,6 +457,7 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
             <div key={d.id}>
               <div className="flex flex-wrap items-center gap-1.5">
                 <code className="font-mono text-xs text-muted-foreground">
+                  {inputOf(d) && `[${inputOf(d)}] `}
                   {d.path}:{d.span?.startLine}
                 </code>
                 {d.generator && (
@@ -395,7 +466,7 @@ function NodeInspector({ node, model }: { node: HNode; model: GraphModel }) {
                   </Badge>
                 )}
               </div>
-              <SourceContext path={d.path} store={d.store} span={d.extent ?? d.span} radius={2} />
+              <SourceContext path={d.path} store={d.store} span={d.extent ?? d.span} radius={2} input={inputOf(d)} />
             </div>
           ))}
         </TabsContent>
@@ -463,6 +534,11 @@ function RelationRowPair({ e, model }: { e: Edge; model: GraphModel }) {
         <span className="truncate">{label(e.from)}</span>
         <span className="text-muted-foreground">→</span>
         <span className="truncate">{label(e.to)}</span>
+        {e.link?.scope === 'system' && (
+          <Badge variant="outline" className="ml-auto h-5 shrink-0 px-1.5 text-[10px] font-normal">
+            {String(e.link.via ?? 'system')}
+          </Badge>
+        )}
         {e.usage && (
           <Badge variant="secondary" className="ml-auto h-5 shrink-0 px-1.5 text-[10px] font-normal">
             {e.usage}
@@ -475,6 +551,7 @@ function RelationRowPair({ e, model }: { e: Edge; model: GraphModel }) {
           <NodeLink id={e.to} model={model} />
         </div>
         {e.relation && <Fields rec={e.relation} skip={['evidence', 'id']} />}
+        {e.link && <LinkDetails link={e.link} model={model} />}
         <EvidenceList ids={e.relation?.evidence ?? e.link?.evidence ?? []} limit={5} />
       </CollapsibleContent>
     </Collapsible>

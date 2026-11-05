@@ -27,6 +27,19 @@ On the map, the shape of a project says what it is; its colour only tells projec
 
 Shapes are drawn inside each packed circle, so the layout and zooming are unchanged; a project opens into a circle as before. The legend lists the roles on the current map.
 
+### System generations
+
+A system generation (contract v1.2, `schema/system/v1`, written by [intelligence-federation](../devos-intelligence-federation)) combines several repositories: its records carry `input` and ids prefixed `{input}/`, and `graph/links.ndjson` adds links with `scope: system` between them. The viewer opens it as one map:
+
+- Every input repository is a top-level region holding its projects (with their role shapes) and its external packages. The switcher lists system generations first.
+- Cross-repository links are edges in their kind colours: HTTP (`configured_route`), messaging (`consumes_contract`), real time (`pushes_to`) and packages (`implemented_by_package`). A system opens with edges set to **All**, so the links between every repository show at once; focus works as for any relation. A package side is metadata, hidden by default, so the map draws it at the project that references the package directly (or at the repository) until *External packages* is shown.
+- The inspector and Tables show a system link's `match`, `resolution`, `reason`, `versionMatch` and both sides, and label evidence with its input (`[leasing] src/...`). Tables adds **Traces** (`graph/traces.ndjson`, with their segments), **Inputs** and **Packages**; Summary lists the inputs with commit, engine, status and verification.
+- Sources open from the right repository: locally from the folder named like the input's repository (or its id) under the generation's `source`, or from `sources`; on the published site from GitHub at the input's commit. Generated files of an input are not part of a system generation; evidence then shows its snippet.
+
+```json
+{ "generations": [{ "path": "/path/to/_generations/lab-system", "label": "devos-lab", "source": "/path/to/folder/with/devos-lab-*" }] }
+```
+
 ### Map navigation
 
 | Input | Action |
@@ -43,6 +56,8 @@ Shapes are drawn inside each packed circle, so the layout and zooming are unchan
 | `?` | All keyboard shortcuts |
 | `⌘K` or `/` | Command palette: jump to any symbol, project or action |
 | Browser Back / Forward | Replay map navigation (every position is a deep link) |
+
+**Spacing** in Layers and filters (Display) scales the room between circles from 0.5× to 3× (1× is the default) and rebuilds the layout; each viewer's choice is remembered in the browser.
 
 Edges are bundled along the containment hierarchy (Holten), drawn faintly above the map and highlighted, with flowing direction particles, for the hovered or selected circle. The breadcrumb at the top shows where you are; each segment has a menu of its siblings.
 
@@ -70,9 +85,9 @@ Production build: `npm run build && npm start -- --port 4600`.
 
 ## Published site
 
-[albertomitroi.github.io/devos-context-viewer](https://albertomitroi.github.io/devos-context-viewer/) shows the five public lab generations (`devos-lab-core`, `-pricing`, `-intake`, `-leasing`, `-web`), rebuilt by [`.github/workflows/pages.yml`](.github/workflows/pages.yml) on every push to `main`, on demand, and on a `repository_dispatch` of type `context-published`:
+[albertomitroi.github.io/devos-context-viewer](https://albertomitroi.github.io/devos-context-viewer/) shows the five public lab generations (`devos-lab-core`, `-pricing`, `-intake`, `-leasing`, `-web`) and the lab system that combines them (**devos-lab**, from `ghcr.io/albertomitroi/context-systems:lab-main`), rebuilt by [`.github/workflows/pages.yml`](.github/workflows/pages.yml) on every push to `main`, on demand, and on a `repository_dispatch` of type `context-published`:
 
-- `scripts/pull-lab-generations.sh <dir>` pulls `ghcr.io/albertomitroi/context-devos-lab-*:main-<engine>` with ORAS in Docker, checks `manifest.json` against the layer annotation `dev.devos.intelligence.manifest-sha256` and drops `index.sqlite` (the viewer does not read it).
+- `scripts/pull-lab-generations.sh <dir>` pulls `ghcr.io/albertomitroi/context-devos-lab-*:main-<engine>` and `ghcr.io/albertomitroi/context-systems:lab-main` (into `devos-lab/`) with ORAS in Docker, checks `manifest.json` against the layer annotation `dev.devos.intelligence.manifest-sha256` and drops `index.sqlite` (the viewer does not read it).
 - `node scripts/static-index.mjs <dir>` writes `index.json` and one `<id>.files.json` per generation.
 - Without the local API, the viewer reads `generations/index.json` relative to the site (`VIEWER_BASE` sets the Vite base) and fetches repository sources from `raw.githubusercontent.com` at the generation's commit; when that fails, evidence shows the redacted snippet.
 
@@ -104,6 +119,7 @@ npx vite preview --base /devos-context-viewer/
 ```bash
 npm test
 CV_SAMPLE=/path/to/generation npm test   # adds a smoke test on a real generation
+CV_SYSTEM_SAMPLE=/path/to/_generations/lab-system npm test   # and on a real system generation
 ```
 
 ## License

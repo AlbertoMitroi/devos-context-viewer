@@ -7,7 +7,7 @@ import { PathLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers';
 import { CollisionFilterExtension } from '@deck.gl/extensions';
 import { useShallow } from 'zustand/react/shallow';
 import { ROOT, useStore } from '../store';
-import { buildMapLayout, computeFrame, locate, MAP_EXTENT, nearestSibling, zoomToFit, type Direction, type MapEdge, type MapNode } from '../model/mapLayout';
+import { buildMapLayout, colorIndex, computeFrame, locate, MAP_EXTENT, nearestSibling, zoomToFit, type Direction, type MapEdge, type MapNode } from '../model/mapLayout';
 import { ancestors } from '../model/graphModel';
 import { projectColor, relationColor, symbolColor, type RGB } from '../theme/palette';
 import { Camera, prefersReducedMotion, wheelZoomDelta, type Cam } from './camera';
@@ -24,7 +24,7 @@ import { ROLE_SHAPE } from '../components/role-glyph';
 
 type RGBA = [number, number, number, number];
 
-const GROUP_KINDS = new Set(['project', 'package', 'group', 'namespace', 'pkgnamespace']);
+const GROUP_KINDS = new Set(['repository', 'project', 'package', 'group', 'namespace', 'pkgnamespace']);
 const VIEW = new OrthographicView({ id: 'map', flipY: true });
 const collision = new CollisionFilterExtension();
 const FONT = '"Inter Variable", Inter, system-ui, sans-serif';
@@ -71,6 +71,7 @@ export function MapView() {
   const set = useStore((s) => s.set);
   const navigate = useStore((s) => s.navigate);
   const focusDirection = useStore((s) => s.mapFocusDirection);
+  const spacing = useStore((s) => s.mapSpacing);
 
   const wrap = useRef<HTMLDivElement>(null);
   const deck = useRef<DeckGLRef>(null);
@@ -87,11 +88,11 @@ export function MapView() {
     Promise.all([document.fonts.load(`600 13px ${FONT}`), document.fonts.load(`500 11px ${FONT}`)]).finally(() => setFontsReady(true));
   }, []);
 
-  const layout = useMemo(() => buildMapLayout(model, filters), [model, filters.hidden, filters.entityKinds, filters.origins, filters.disabledRoots, filters.hideTests]); // eslint-disable-line react-hooks/exhaustive-deps
+  const layout = useMemo(() => buildMapLayout(model, filters, spacing), [model, spacing, filters.hidden, filters.entityKinds, filters.origins, filters.disabledRoots, filters.hideTests]); // eslint-disable-line react-hooks/exhaustive-deps
   const route = useMemo(() => createEdgeRouter(layout), [layout]);
   const rootColor = useMemo(() => {
     const m = new Map<string, RGB>();
-    layout.roots.forEach((r, i) => m.set(r, projectColor(i)));
+    for (const [id, i] of colorIndex(layout)) m.set(id, projectColor(i));
     return m;
   }, [layout]);
   const roles = useMemo(() => projectRoles(data), [data]);
@@ -190,11 +191,14 @@ export function MapView() {
   const focusRootId = crumbs[0] ?? null;
   const onScreen = useMemo(() => frame.edges.filter((e) => drawnIds.has(e.source) || drawnIds.has(e.target)), [frame, drawnIds]);
   const focused = useMemo(() => (edgeMode === 'none' ? [] : focusEdges(onScreen, focusId, focusDirection)), [onScreen, focusId, focusDirection, edgeMode]);
-  // Background edges, only in "All" mode: between projects at the overview, or touching the project you are in.
+  // Background edges, only in "All" mode: between top-level circles (projects, or the repositories of a system)
+  // at the overview, or touching the one you are in. In a system the links between the other repositories stay.
   const edges = useMemo(() => {
     if (edgeMode !== 'all') return [];
-    const rootOf = (id: string) => layout.nodes.get(id)?.root;
-    return focusRootId ? onScreen.filter((e) => rootOf(e.source) === focusRootId || rootOf(e.target) === focusRootId) : onScreen.filter((e) => !layout.nodes.get(e.source)?.parent && !layout.nodes.get(e.target)?.parent);
+    const topOf = (id: string) => layout.nodes.get(id)?.top;
+    const between = (e: MapEdge) => !layout.nodes.get(e.source)?.parent && !layout.nodes.get(e.target)?.parent;
+    const system = layout.nodes.get(layout.roots[0] ?? '')?.kind === 'repository';
+    return focusRootId ? onScreen.filter((e) => topOf(e.source) === focusRootId || topOf(e.target) === focusRootId || (system && between(e))) : onScreen.filter(between);
   }, [onScreen, edgeMode, layout, focusRootId]);
   // In focus, hovering a connected circle singles out just the edges between it and the focus.
   const hoverPair = useMemo(() => new Set(focusId && hoverId && hoverId !== focusId ? focused.filter((e) => e.source === hoverId || e.target === hoverId) : []), [focused, focusId, hoverId]);

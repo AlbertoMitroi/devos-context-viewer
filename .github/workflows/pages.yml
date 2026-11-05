@@ -1,7 +1,9 @@
-# Publishes the viewer to GitHub Pages (https://<owner>.github.io/devos-context-viewer/) with the five public lab
-# generations only. Each is pulled from GHCR with ORAS, checked against its manifest-sha256 layer annotation and
-# served as static files (src/model/source.ts staticSource); repository sources come from raw.githubusercontent.com.
-# repository_dispatch "context-published" lets the lab repositories redeploy after publishing a generation.
+# Publishes the viewer to GitHub Pages (https://<owner>.github.io/devos-context-viewer/) with the public lab only:
+# the five repository generations and the lab system generation (context-systems:lab-main, shown as "devos-lab").
+# Each is pulled from GHCR with ORAS, checked against its manifest-sha256 layer annotation and served as static
+# files (src/model/source.ts staticSource); repository sources come from raw.githubusercontent.com, at each input's
+# commit for the system. repository_dispatch "context-published" lets the lab repositories (and devos-lab, after
+# publishing the system generation) redeploy the site.
 name: pages
 
 on:
@@ -44,7 +46,7 @@ jobs:
           scripts/pull-lab-generations.sh dist/generations "${GITHUB_REPOSITORY_OWNER,,}" | tee pulled.txt
           node scripts/static-index.mjs dist/generations
           {
-            echo "### Lab generations"
+            echo "### Lab generations (repositories and the devos-lab system)"
             echo '```'
             cat pulled.txt
             echo '```'

@@ -15,10 +15,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { KindGlyph } from '@/components/kind-glyph';
 import { edgeColor, isKnownEdgeKind, kindLabel, STRUCTURAL_KINDS } from '@/model/kinds';
 import { useStore, type MapEdges } from '@/store';
+import { SPACING_MAX, SPACING_MIN } from '@/model/mapLayout';
 
 const PRESETS: { id: string; label: string; kinds: (all: string[]) => string[] }[] = [
   { id: 'all', label: 'Everything', kinds: (all) => all.filter((k) => !STRUCTURAL_KINDS.has(k)) },
-  { id: 'arch', label: 'Architecture', kinds: () => ['project_reference', 'package_reference', 'consumes_contract', 'configured_route', 'possible_communication'] },
+  { id: 'arch', label: 'Architecture', kinds: () => ['project_reference', 'package_reference', 'consumes_contract', 'configured_route', 'possible_communication', 'pushes_to', 'implemented_by_package'] },
   { id: 'calls', label: 'Calls', kinds: () => ['calls_declared_target', 'possible_runtime_target'] },
   { id: 'types', label: 'Type hierarchy', kinds: () => ['implements', 'inherits', 'overrides'] },
 ];
@@ -52,9 +53,9 @@ function AllNone({ onAll, onNone }: { onAll: () => void; onNone: () => void }) {
   );
 }
 
-function CheckRow({ id, checked, onChange, label, count, swatch, glyph, badge, title }: { id: string; checked: boolean; onChange: () => void; label: string; count?: number; swatch?: string; glyph?: string; badge?: string; title?: string }) {
+function CheckRow({ id, checked, onChange, label, count, swatch, glyph, badge, title, indent }: { id: string; checked: boolean; onChange: () => void; label: string; count?: number; swatch?: string; glyph?: string; badge?: string; title?: string; indent?: boolean }) {
   return (
-    <div className="flex h-8 items-center gap-2.5 rounded-md px-2 hover:bg-accent/50" title={title}>
+    <div className={`flex h-8 items-center gap-2.5 rounded-md px-2 hover:bg-accent/50 ${indent ? 'ml-5' : ''}`} title={title}>
       <Checkbox id={id} checked={checked} onCheckedChange={onChange} />
       {swatch && <span className="size-2.5 shrink-0 rounded-sm" style={{ background: swatch }} />}
       {glyph && <KindGlyph kind={glyph} />}
@@ -83,7 +84,15 @@ export function LayersSheet() {
     const want = new Set(p.kinds(all).filter((k) => model.edgeKinds.has(k)));
     return want.size === st.edgeKinds.size && [...want].every((k) => st.edgeKinds.has(k));
   })?.id;
-  const roots = model.roots.map((r) => model.nodes.get(r)!).filter((n) => n.label.toLowerCase().includes(projQ.toLowerCase()));
+  // A system lists each repository with its projects and packages underneath.
+  const matches = (n: { label: string }) => n.label.toLowerCase().includes(projQ.toLowerCase());
+  const roots = model.roots
+    .map((r) => model.nodes.get(r)!)
+    .flatMap((n) => {
+      if (n.kind !== 'repository') return matches(n) ? [{ n, nested: false }] : [];
+      const kids = n.children.map((c) => model.nodes.get(c)!).filter(matches);
+      return matches(n) || kids.length ? [{ n, nested: false }, ...kids.map((k) => ({ n: k, nested: true }))] : [];
+    });
 
   return (
     <Sheet open={st.layersOpen} onOpenChange={(v) => st.set({ layersOpen: v })}>
@@ -192,9 +201,10 @@ export function LayersSheet() {
                 <Switch id="hide-tests" checked={st.hideTests} onCheckedChange={(v) => st.set({ hideTests: v })} />
               </div>
               <Input className="my-1 h-8" placeholder="Filter projects…" value={projQ} onChange={(e) => setProjQ(e.target.value)} />
-              {roots.map((n) => (
+              {roots.map(({ n, nested }) => (
                 <CheckRow
                   key={n.id}
+                  indent={nested}
                   id={`root-${n.id}`}
                   checked={!st.disabledRoots.has(n.id)}
                   onChange={() => st.toggleIn('disabledRoots', n.id)}
@@ -208,7 +218,25 @@ export function LayersSheet() {
             </Section>
             <Separator />
             <Section title="Display">
-              <div className="space-y-3 px-2 pt-1">
+              <div className="space-y-4 px-2 pt-1">
+                {st.tab === 'map' && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <Label htmlFor="map-spacing">Spacing</Label>
+                      <span className="font-mono text-xs text-muted-foreground">{Number(st.mapSpacing.toFixed(2))}×</span>
+                    </div>
+                    <Slider
+                      id="map-spacing"
+                      aria-label="Spacing between circles"
+                      min={SPACING_MIN}
+                      max={SPACING_MAX}
+                      step={0.25}
+                      value={[st.mapSpacing]}
+                      onValueChange={([v]) => st.setMapSpacing(v)}
+                    />
+                    <p className="text-xs text-muted-foreground">Room between circles on the map; 1× is the default.</p>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <Label>Minimum edge weight</Label>

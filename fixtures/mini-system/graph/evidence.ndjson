@@ -1,0 +1,3 @@
+{"id":"api/ev:1","input":"api","path":"src/Host/OrdersController.cs","span":{"startLine":3,"startColumn":5,"endLine":3,"endColumn":20},"method":"semantic","store":"repository","snippet":"api/snip:1"}
+{"id":"web/ev:1","input":"web","path":"src/app/orders.service.ts","span":{"startLine":7,"startColumn":3,"endLine":7,"endColumn":30},"method":"semantic","store":"repository","snippet":"web/snip:1"}
+{"id":"tool/ev:1","input":"tool","path":"src/Core/Runner.cs","span":{"startLine":1,"startColumn":1,"endLine":1,"endColumn":10},"method":"semantic","store":"repository"}

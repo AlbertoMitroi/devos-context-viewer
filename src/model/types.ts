@@ -103,6 +103,16 @@ export interface Diagnostic extends Json {
   message?: string;
 }
 
+/** One repository of a system generation (inputs.ndjson). Its records carry `input` and ids prefixed `{id}/`. */
+export interface SystemInput extends Json {
+  id: string;
+  commit?: string | null;
+  status?: string | null;
+  included?: boolean;
+  repository?: { remoteUrl?: string | null } | null;
+  engine?: { name?: string; version?: string } | null;
+}
+
 export interface GenerationFile {
   path: string;
   size?: number;
@@ -120,6 +130,12 @@ export interface GenerationData {
   observations: Observation[];
   links: Link[];
   diagnostics: Diagnostic[];
+  /** System generations (contract v1.2, schema/system/v1): the repositories combined, empty otherwise. */
+  inputs: SystemInput[];
+  /** System generations: how each consumed package resolved to the input that produces it. */
+  packages: Json[];
+  /** System generations: end-to-end paths across repositories, as segments of links and relations. */
+  traces: Json[];
   otherProjectRecords: Json[];
   files: GenerationFile[];
   counts: Record<string, number>;
@@ -140,4 +156,8 @@ export interface GenerationInfo {
   hasSource: boolean;
   modified?: number;
   local?: boolean;
+  /** 'system' for a federation generation; absent for one repository. */
+  generationType?: string | null;
+  /** System generations: each input's repository and commit, so sources open from the right repository. */
+  inputs?: { id: string; repository: string | null; commit: string | null }[];
 }

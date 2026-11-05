@@ -1,12 +1,13 @@
 // Application state: generations, the loaded model, view state and UI selection.
 import { create } from 'zustand';
 import { buildGraphModel, ancestors, type GraphModel } from './model/graphModel';
+import { isSystem } from './model/parse';
 import { expandedForLevel, shortestPath, type Direction, type Focus, type ViewState } from './model/graphView';
 import { STRUCTURAL_KINDS } from './model/kinds';
 import { fetchServerGenerations, fetchStaticGenerations, localSources, serverSource, staticSource, type DataSource } from './model/source';
 import type { Evidence, GenerationData, GenerationInfo } from './model/types';
 import type { WorkerRequest, WorkerResponse } from './model/load.worker';
-import type { MapLayout } from './model/mapLayout';
+import { clampSpacing, type MapLayout } from './model/mapLayout';
 
 export type Tab = 'map' | 'graph' | 'tables' | 'overview' | 'docs';
 export type MapEdges = 'all' | 'selection' | 'none';
@@ -36,6 +37,9 @@ interface State extends ViewState {
   mapEdges: MapEdges;
   /** Which relations of the selection the map shows: what it uses, what uses it, or both. */
   mapFocusDirection: 'out' | 'in' | 'both';
+  /** Spacing between circles on the map, a factor of the default padding; remembered per viewer. */
+  mapSpacing: number;
+  setMapSpacing(v: number): void;
   selection: Selection;
   centerOn: string | null;
   searchQuery: string;
@@ -117,6 +121,17 @@ function writeHash(id: string | null, sel?: string | null, push = false) {
   else history.replaceState(null, '', h ? `#${h}` : location.pathname);
 }
 
+const SPACING_KEY = 'context-viewer.mapSpacing';
+
+function readSpacing(): number {
+  try {
+    const v = localStorage.getItem(SPACING_KEY);
+    return v === null ? 1 : clampSpacing(Number(v));
+  } catch {
+    return 1; // storage blocked (private window, tests)
+  }
+}
+
 /** centerOn value that asks the map to show everything. */
 export const ROOT = '__root';
 
@@ -152,6 +167,7 @@ export const useStore = create<State>((set, get) => ({
   hoverHighlight: true,
   mapEdges: 'selection',
   mapFocusDirection: 'both',
+  mapSpacing: readSpacing(),
   selection: null,
   centerOn: null,
   searchQuery: '',
@@ -261,6 +277,8 @@ export const useStore = create<State>((set, get) => ({
       searchHits: [],
       docPath: docs.find((d) => /overview|index/.test(d.path))?.path ?? docs[0]?.path ?? null,
       layoutTick: get().layoutTick + 1,
+      // A system is opened to see how its repositories connect: every link between them is drawn.
+      ...(isSystem(data) ? { mapEdges: 'all' as MapEdges } : {}),
     });
     writeHash(id);
   },
@@ -272,6 +290,16 @@ export const useStore = create<State>((set, get) => ({
       pending.set(requestId, resolve);
       worker!.postMessage({ type: 'evidence', requestId, ids } satisfies WorkerRequest);
     });
+  },
+
+  setMapSpacing(v) {
+    const mapSpacing = clampSpacing(v);
+    set({ mapSpacing });
+    try {
+      localStorage.setItem(SPACING_KEY, String(mapSpacing));
+    } catch {
+      // not remembered when storage is unavailable
+    }
   },
 
   set(partial) {
@@ -383,8 +411,8 @@ export const useStore = create<State>((set, get) => ({
   isolateRoot(id) {
     const model = get().model;
     if (!model) return;
-    const root = model.nodes.get(id)?.root ?? id;
-    set({ disabledRoots: new Set(model.roots.filter((r) => r !== root)) });
+    const top = model.nodes.get(id)?.top ?? id;
+    set({ disabledRoots: new Set(model.roots.filter((r) => r !== top)) });
   },
 
   findPath(from, to, directed) {

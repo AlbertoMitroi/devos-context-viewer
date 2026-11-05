@@ -1,0 +1,8 @@
+{"id":"api/dotnet:src/Host/Host.csproj:T:Api.Host.OrdersController","input":"api","kind":"class","name":"OrdersController","container":null,"origin":"source","project":"src/Host/Host.csproj"}
+{"id":"api/dotnet:src/Host/Host.csproj:M:Api.Host.OrdersController.Get","input":"api","kind":"method","name":"Get","container":"api/dotnet:src/Host/Host.csproj:T:Api.Host.OrdersController","origin":"source","project":"src/Host/Host.csproj"}
+{"id":"api/dotnet:src/Host/Host.csproj:M:Api.Host.Program.Main","input":"api","kind":"method","name":"Main","container":null,"origin":"source","project":"src/Host/Host.csproj"}
+{"id":"api/dotnet:src/Core/Core.csproj:T:Api.Core.Order","input":"api","kind":"class","name":"Order","container":null,"origin":"source","project":"src/Core/Core.csproj"}
+{"id":"tool/dotnet:src/Core/Core.csproj:T:Tool.Core.Runner","input":"tool","kind":"class","name":"Runner","container":null,"origin":"source","project":"src/Core/Core.csproj"}
+{"id":"tool/dotnet:pkg:Api.Core@1.0.0:Api.Core:T:Api.Core.Order","input":"tool","kind":"class","name":"Order","container":null,"origin":"metadata","namespace":"Api.Core"}
+{"id":"web/ts:.:src/app/orders.service#OrdersService","input":"web","kind":"class","name":"OrdersService","container":null,"origin":"source","project":"."}
+{"id":"web/ts:.:src/app/orders.service#OrdersService.list","input":"web","kind":"method","name":"list","container":"web/ts:.:src/app/orders.service#OrdersService","origin":"source","project":"."}

@@ -12,6 +12,7 @@ import type {
   Observation,
   ProjectRecord,
   Relation,
+  SystemInput,
 } from './types';
 
 export const GRAPH_FILES = [
@@ -22,6 +23,10 @@ export const GRAPH_FILES = [
   'graph/observations.ndjson',
   'graph/links.ndjson',
   'graph/diagnostics.ndjson',
+  // System generations only; absent files parse to empty lists.
+  'graph/packages.ndjson',
+  'graph/traces.ndjson',
+  'inputs.ndjson',
 ] as const;
 
 export const SIDE_FILES = ['graph/evidence.ndjson', 'snippets.ndjson'] as const;
@@ -87,6 +92,9 @@ export function buildGenerationData(texts: Record<string, string | null>, files:
     observations: parseNdjson<Observation>(texts['graph/observations.ndjson'], 'graph/observations.ndjson', errors),
     links: parseNdjson<Link>(texts['graph/links.ndjson'], 'graph/links.ndjson', errors),
     diagnostics: parseNdjson<Diagnostic>(texts['graph/diagnostics.ndjson'], 'graph/diagnostics.ndjson', errors),
+    inputs: parseNdjson<SystemInput>(texts['inputs.ndjson'], 'inputs.ndjson', errors),
+    packages: parseNdjson<Json>(texts['graph/packages.ndjson'], 'graph/packages.ndjson', errors),
+    traces: parseNdjson<Json>(texts['graph/traces.ndjson'], 'graph/traces.ndjson', errors),
     files,
     counts: {},
     parseErrors: errors,
@@ -102,7 +110,13 @@ export function buildGenerationData(texts: Record<string, string | null>, files:
     links: data.links.length,
     diagnostics: data.diagnostics.length,
   };
+  if (isSystem(data)) Object.assign(data.counts, { inputs: data.inputs.length, packages: data.packages.length, traces: data.traces.length });
   return data;
+}
+
+/** A federation generation: several repositories, records prefixed by input (contract v1.2, systemFormat 1.0). */
+export function isSystem(data: Pick<GenerationData, 'manifest' | 'inputs'>): boolean {
+  return data.manifest?.generationType === 'system' || data.inputs.length > 0;
 }
 
 export function buildEvidenceIndex(texts: Record<string, string | null>, errors: ParseError[]) {

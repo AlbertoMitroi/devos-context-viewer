@@ -10,11 +10,16 @@ export interface DataSource {
   /** Handles the worker can read: a URL or a File. */
   handle(path: string): FileHandle | null;
   readText(path: string): Promise<string | null>;
-  /** Source file for evidence; null when the store is not reachable. */
-  readSource(path: string, store: string | undefined): Promise<string | null>;
+  /** Source file for evidence; null when the store is not reachable. `input` names the repository of a system. */
+  readSource(path: string, store: string | undefined, input?: string): Promise<string | null>;
   /** Why repository sources are missing, shown when readSource returns null. */
   sourceHint?: string;
+  /** The same for a repository of a system generation. */
+  inputHint?(input: string): string;
 }
+
+/** Short commit for display; a system generation's commit is `system:<sha256>`. */
+export const shortCommit = (commit: string | null | undefined) => (commit ? commit.replace(/^system:/, '').slice(0, 7) : '?');
 
 async function textOrNull(res: Response): Promise<string | null> {
   return res.ok ? res.text() : null;
@@ -43,11 +48,19 @@ export function serverSource(info: GenerationInfo): DataSource {
     async readText(p) {
       return textOrNull(await fetch(fileUrl(p)));
     },
-    async readSource(p, store) {
-      const res = await fetch(`${base}/source?path=${encodeURIComponent(p)}&store=${encodeURIComponent(store ?? 'repository')}`);
+    async readSource(p, store, input) {
+      const res = await fetch(`${base}/source?path=${encodeURIComponent(p)}&store=${encodeURIComponent(store ?? 'repository')}${input ? `&input=${encodeURIComponent(input)}` : ''}`);
       return textOrNull(res);
     },
+    inputHint: (input) =>
+      `No checkout of the ${input} repository was found: set "source" of this generation in viewer.config.json to the folder that holds the repositories, or "sources": { "${input}": path }.`,
   };
+}
+
+/** Repository and commit sources should be read from: the input's for a system generation, else the generation's. */
+export function sourceRepository(info: GenerationInfo, input?: string): { repository: string | null; commit: string | null } {
+  const i = input ? info.inputs?.find((x) => x.id === input) : undefined;
+  return i ? { repository: i.repository, commit: i.commit } : { repository: info.repository, commit: info.commit };
 }
 
 /** Raw file URL on GitHub for a public repository at a commit; null for other hosts. */
@@ -78,7 +91,10 @@ export function staticSource(info: GenerationInfo): DataSource {
   const base = `generations/${encodeURIComponent(info.id)}`;
   const fileUrl = (p: string) => siteUrl(`${base}/${p.split('/').map(encodeURIComponent).join('/')}`);
   const sources = new Map<string, Promise<string | null>>();
-  const at = info.commit ? `${info.repository} at ${info.commit.slice(0, 7)}` : info.repository;
+  const at = (input?: string) => {
+    const { repository, commit } = sourceRepository(info, input);
+    return commit ? `${repository} at ${commit.slice(0, 7)}` : repository;
+  };
   return {
     info,
     async listFiles() {
@@ -89,14 +105,17 @@ export function staticSource(info: GenerationInfo): DataSource {
     async readText(p) {
       return textOrNull(await fetch(fileUrl(p)));
     },
-    readSource(p, store) {
-      if (store === 'generation') return fetch(fileUrl(p)).then(textOrNull);
-      const url = githubRawUrl(info.repository, info.commit, p);
+    readSource(p, store, input) {
+      // Generated files of a system's inputs are not copied into the system generation.
+      if (store === 'generation') return input ? Promise.resolve(null) : fetch(fileUrl(p)).then(textOrNull);
+      const { repository, commit } = sourceRepository(info, input);
+      const url = githubRawUrl(repository, commit, p);
       if (!url) return Promise.resolve(null);
       if (!sources.has(url)) sources.set(url, fetch(url).then(textOrNull, () => null));
       return sources.get(url)!;
     },
-    sourceHint: `It could not be read from GitHub (${at ?? 'no repository in the manifest'}).`,
+    sourceHint: `It could not be read from GitHub (${at() ?? 'no repository in the manifest'}).`,
+    inputHint: (input) => `It could not be read from GitHub (${at(input) ?? 'no repository for this input'}).`,
   };
 }
 

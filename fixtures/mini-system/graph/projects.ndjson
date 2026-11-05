@@ -1,0 +1,4 @@
+{"id":"api/prj:host","input":"api","recordType":"project","path":"src/Host/Host.csproj","assemblyName":"Api.Host","projectReferences":["src/Core/Core.csproj"],"packages":[]}
+{"id":"api/prj:core","input":"api","recordType":"project","path":"src/Core/Core.csproj","assemblyName":"Api.Core","projectReferences":[],"packages":[]}
+{"id":"tool/prj:core","input":"tool","recordType":"project","path":"src/Core/Core.csproj","assemblyName":"Tool.Core","projectReferences":[],"packages":[{"id":"Api.Core","version":"1.0.0","direct":true}]}
+{"id":"web/prj:app","input":"web","recordType":"project","path":".","projectReferences":[],"packages":[],"ext":{"angular":{"name":"web","projectType":"application"}}}

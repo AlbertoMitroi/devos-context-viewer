@@ -30,6 +30,9 @@ export const OBSERVATION_KINDS_V1 = [
 
 export const LINK_KINDS_V1 = ['consumes_contract', 'configured_route', 'possible_communication'] as const;
 
+/** Link kinds of contract v1.2: in-process dispatch, and the system links between repositories. */
+export const LINK_KINDS_V1_2 = ['dispatches_to', 'pushes_to', 'implemented_by_package'] as const;
+
 /** Edges the viewer derives from project records; not part of relations.ndjson. */
 export const SYNTHETIC_KINDS = ['project_reference', 'package_reference'] as const;
 
@@ -42,7 +45,7 @@ export const RESOLUTIONS = ['exact', 'ambiguous', 'candidate', 'unresolved'] as 
 
 export const ORIGINS = ['source', 'generated', 'metadata'] as const;
 
-const KNOWN = new Set<string>([...RELATION_KINDS_V1, ...LINK_KINDS_V1, ...SYNTHETIC_KINDS]);
+const KNOWN = new Set<string>([...RELATION_KINDS_V1, ...LINK_KINDS_V1, ...LINK_KINDS_V1_2, ...SYNTHETIC_KINDS]);
 export const isKnownEdgeKind = (k: string) => KNOWN.has(k) || k.startsWith('link:');
 
 // Colours come from the shared perceptual palette, so the map, lists and charts agree.
@@ -91,6 +94,9 @@ export const KIND_LABELS: Record<string, string> = {
   consumes_contract: 'consumes contract',
   configured_route: 'configured route',
   possible_communication: 'possible communication',
+  dispatches_to: 'dispatches to',
+  pushes_to: 'pushes to (real time)',
+  implemented_by_package: 'implemented by package',
 };
 
 export const kindLabel = (k: string) => KIND_LABELS[k] ?? k;

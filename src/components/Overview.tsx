@@ -11,6 +11,9 @@ import { PageHeader, PathText, Section, StatCard } from '@/components/blocks';
 import { useStore } from '@/store';
 import { kindLabel } from '@/model/kinds';
 import { coverageRows } from '@/model/coverage';
+import { inputName, projectKey, repositoryId, systemInputs } from '@/model/graphModel';
+import { isSystem } from '@/model/parse';
+import { shortCommit } from '@/model/source';
 import { relationColor, rgbCss, symbolColor } from '@/theme/palette';
 import type { Diagnostic, Json } from '@/model/types';
 import { cn } from '@/lib/utils';
@@ -116,11 +119,12 @@ function DiagnosticGroups({ diagnostics }: { diagnostics: Diagnostic[] }) {
             </CollapsibleTrigger>
             <CollapsibleContent className="border-t border-border-subtle bg-surface-1/60">
               {g.items.map((d) => {
-                const project = d.scope ? model.projectByPath.get(String(d.scope)) : undefined;
+                const project = d.scope ? model.projectByPath.get(projectKey(d.input, String(d.scope))) : undefined;
                 return (
                   <div key={d.id} className="flex items-start gap-3 px-4 py-3 pl-12 text-sm">
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex items-center gap-2">
+                        {typeof d.input === 'string' && <span className="font-mono text-xs text-subtle-foreground">[{d.input}]</span>}
                         <PathText text={String(d.scope ?? '')} max={64} />
                         <Badge variant="secondary" className="h-5 text-2xs font-normal">
                           {d.state}
@@ -144,6 +148,68 @@ function DiagnosticGroups({ diagnostics }: { diagnostics: Diagnostic[] }) {
   );
 }
 
+/** The repositories a system generation combines: commit, status and how the federation verified each. */
+function SystemInputs() {
+  const st = useStore();
+  const data = st.data!;
+  const model = st.model!;
+  const inputs = systemInputs(data);
+  const links = data.links.filter((l) => l.scope === 'system');
+  const linksOf = (id: string) => links.filter((l) => (l.from as Json | null)?.input === id || (l.to as Json | null)?.input === id).length;
+  return (
+    <Section title="System inputs" count={inputs.length}>
+      <Card className="overflow-hidden rounded-xl">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="pl-4">Repository</TableHead>
+              <TableHead>Commit</TableHead>
+              <TableHead>Engine</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Verification</TableHead>
+              <TableHead className="text-right">System links</TableHead>
+              <TableHead className="w-20" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {inputs.map((i) => {
+              const node = model.nodes.get(repositoryId(i.id));
+              const verification = (i.verification as Json | undefined)?.result;
+              const engine = i.engine as Json | undefined;
+              return (
+                <TableRow key={i.id}>
+                  <TableCell className="pl-4">
+                    <div className="font-medium">{inputName(i)}</div>
+                    <div className="font-mono text-2xs text-subtle-foreground">{i.id}</div>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs" title={String(i.commit ?? '')}>
+                    {shortCommit(i.commit)}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{engine ? `${engine.name} ${engine.version}` : ''}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={cn('capitalize', i.included === false ? stateClass('partial') : stateClass(i.status === 'complete' ? 'semantic' : i.status === 'failed' ? 'failed' : 'partial'))}>
+                      {i.included === false ? 'excluded' : String(i.status ?? 'unknown')}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{verification ? String(verification) : ''}</TableCell>
+                  <TableCell className="text-right font-mono text-xs tabular-nums">{linksOf(i.id)}</TableCell>
+                  <TableCell>
+                    {node && (
+                      <Button variant="ghost" size="sm" className="h-7" onClick={() => (st.set({ tab: 'map' }), st.navigate(node.id))}>
+                        Open
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </Card>
+    </Section>
+  );
+}
+
 export function Overview() {
   const st = useStore();
   const data = st.data!;
@@ -151,6 +217,8 @@ export function Overview() {
   const prev = usePreviousCounts();
   const m = (data.manifest ?? {}) as Json;
   const repo = (m.repository as Json | undefined)?.remoteUrl as string | undefined;
+  const system = isSystem(data);
+  const info = st.generations.find((g) => g.id === st.activeId);
   const engine = m.engine as Json | undefined;
   const roslyn = m.roslyn as Json | undefined;
   // The compiler line follows the engine: Roslyn for .NET, the repository's TypeScript and Angular compilers for Angular.
@@ -181,13 +249,19 @@ export function Overview() {
     <div className="flex-1 overflow-y-auto">
       <div className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-8">
         <PageHeader
-          title={repo ? repo.replace(/^https?:\/\/(www\.)?github\.com\//, '').replace(/\.git$/, '') : 'Generation'}
-          description="What the engine extracted from this commit, how complete it is, and what it could not determine."
+          title={system ? (info?.repoKey ?? `System ${String(m.system ?? '')}`) : repo ? repo.replace(/^https?:\/\/(www\.)?github\.com\//, '').replace(/\.git$/, '') : 'Generation'}
+          description={
+            system
+              ? 'The whole system: every repository at its commit, and the links the federation found between them.'
+              : 'What the engine extracted from this commit, how complete it is, and what it could not determine.'
+          }
           meta={
             <>
               <span className="flex items-center gap-1.5">
                 <GitCommitHorizontal className="size-3.5" />
-                <span className="font-mono">{String(m.commit ?? '').slice(0, 12)}</span>
+                <span className="font-mono" title={String(m.commit ?? '')}>
+                  {system ? `system ${String(m.commit ?? '').replace(/^system:/, '').slice(0, 12)}` : String(m.commit ?? '').slice(0, 12)}
+                </span>
               </span>
               <span>{engine ? `${engine.name} ${engine.version}` : 'unknown engine'}</span>
               <span>schema {String(m.schemaVersion ?? '?')}</span>
@@ -214,6 +288,8 @@ export function Overview() {
           <StatCard label="Projects" value={String(coverage.length || data.projects.length)} hint={`${semantic} of ${coverage.length} loaded semantically`} icon={<Boxes className="size-4" />} />
           <StatCard label="Warnings" value={String(warnings)} hint={`${data.diagnostics.length} diagnostics in total`} icon={<AlertTriangle className="size-4" />} />
         </div>
+
+        {system && <SystemInputs />}
 
         <div className="grid gap-4 lg:grid-cols-2">
           <Card className="rounded-xl">
@@ -251,13 +327,16 @@ export function Overview() {
               <TableBody>
                 {coverage.map((c, i) => {
                   const node = model.nodes.get(c.id);
-                  const diags = data.diagnostics.filter((d) => d.scope === c.path);
+                  const diags = data.diagnostics.filter((d) => d.scope === c.path && (!c.input || d.input === c.input));
                   const n = node?.descendants ?? 0;
                   return (
                     <TableRow key={`${c.path}|${i}`}>
                       <TableCell className="pl-4">
                         <div className="font-medium">{node?.label ?? c.name ?? c.path}</div>
-                        <div className="font-mono text-2xs text-subtle-foreground">{c.path}</div>
+                        <div className="font-mono text-2xs text-subtle-foreground">
+                          {c.input && `[${c.input}] `}
+                          {c.path}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={stateClass(c.state)}>

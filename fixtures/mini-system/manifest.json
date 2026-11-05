@@ -1,0 +1,57 @@
+{
+ "generationType": "system",
+ "system": "acme",
+ "systemFormat": "1.0",
+ "schemaVersion": "1.2",
+ "status": "complete",
+ "commit": "system:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+ "repository": {
+  "remoteUrl": null
+ },
+ "requiredCapabilities": [],
+ "inputs": [
+  {
+   "name": "api",
+   "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "included": true
+  },
+  {
+   "name": "web",
+   "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "included": true
+  },
+  {
+   "name": "tool",
+   "commit": "cccccccccccccccccccccccccccccccccccccccc",
+   "included": true
+  }
+ ],
+ "coverage": {
+  "projects": [
+   {
+    "input": "api",
+    "path": "src/Host/Host.csproj",
+    "project": "api/prj:host",
+    "state": "semantic"
+   },
+   {
+    "input": "api",
+    "path": "src/Core/Core.csproj",
+    "project": "api/prj:core",
+    "state": "semantic"
+   },
+   {
+    "input": "tool",
+    "path": "src/Core/Core.csproj",
+    "project": "tool/prj:core",
+    "state": "semantic"
+   },
+   {
+    "input": "web",
+    "project": "web/.",
+    "name": "web",
+    "loadMode": "semantic"
+   }
+  ]
+ }
+}

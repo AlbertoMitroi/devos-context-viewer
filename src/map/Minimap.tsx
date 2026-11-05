@@ -19,13 +19,21 @@ export function Minimap({ layout, colors, cam, size, onJump }: { layout: MapLayo
     const g = c.getContext('2d')!;
     g.scale(dpr, dpr);
     g.clearRect(0, 0, SIZE, SIZE);
-    for (const id of layout.roots) {
+    const dot = (id: string, alpha: number) => {
       const n = layout.nodes.get(id)!;
-      const col = colors.get(id) ?? [120, 130, 150];
       g.beginPath();
       g.arc(SIZE / 2 + n.x * k, SIZE / 2 + n.y * k, Math.max(1, n.r * k), 0, Math.PI * 2);
-      g.fillStyle = rgbCss(col, 0.55);
+      g.fillStyle = rgbCss(colors.get(id) ?? [120, 130, 150], alpha);
       g.fill();
+    };
+    // A repository of a system shows faintly, with its projects inside.
+    for (const id of layout.roots) {
+      const n = layout.nodes.get(id)!;
+      if (n.kind !== 'repository') dot(id, 0.55);
+      else {
+        dot(id, 0.18);
+        for (const c of n.children) dot(c, 0.55);
+      }
     }
   }, [layout, colors, k]);
 

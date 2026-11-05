@@ -1,27 +1,34 @@
 import { useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ArrowDown, ArrowUp, ArrowUpDown, Crosshair, Search } from 'lucide-react';
+import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, ChevronRight, Crosshair, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { KindGlyph } from '@/components/kind-glyph';
 import { useStore } from '@/store';
 import type { GenerationData, Json } from '@/model/types';
-import { Fields } from './Inspector';
+import { isSystem } from '@/model/parse';
+import { projectKey, repositoryId, type GraphModel } from '@/model/graphModel';
+import { Fields, LinkDetails } from './Inspector';
 import { middleTruncate, PageHeader } from './blocks';
 import { EvidenceList } from './Evidence';
 
-type TableId = 'entities' | 'relations' | 'declarations' | 'observations' | 'links' | 'diagnostics' | 'projects' | 'contexts' | 'files';
+type TableId = 'entities' | 'relations' | 'declarations' | 'observations' | 'links' | 'traces' | 'inputs' | 'packages' | 'diagnostics' | 'projects' | 'contexts' | 'files';
 
-const TABLES: { id: TableId; label: string; priority: string[] }[] = [
+const TABLES: { id: TableId; label: string; priority: string[]; system?: boolean }[] = [
   { id: 'entities', label: 'Entities', priority: ['kind', 'name', 'signature', 'origin', 'accessibility', 'project', 'assembly', 'id'] },
   { id: 'relations', label: 'Relations', priority: ['kind', 'from', 'to', 'usage', 'resolution', 'context'] },
   { id: 'declarations', label: 'Declarations', priority: ['entity', 'path', 'store', 'generator', 'context'] },
   { id: 'observations', label: 'Observations', priority: ['kind'] },
-  { id: 'links', label: 'Links', priority: ['kind', 'resolution'] },
+  { id: 'links', label: 'Links', priority: ['kind', 'via', 'resolution', 'from', 'to', 'match', 'reason', 'versionMatch', 'scope'] },
+  { id: 'traces', label: 'Traces', priority: ['start', 'end', 'inputs', 'resolution', 'segments', 'weakest'], system: true },
+  { id: 'inputs', label: 'Inputs', priority: ['id', 'commit', 'status', 'included', 'engine', 'repository', 'verification'], system: true },
+  { id: 'packages', label: 'Packages', priority: ['packageId', 'version', 'resolution', 'versionMatch', 'producer', 'consumer', 'entities'], system: true },
   { id: 'diagnostics', label: 'Diagnostics', priority: ['severity', 'state', 'code', 'scope', 'message'] },
   { id: 'projects', label: 'Projects', priority: ['assemblyName', 'path', 'targetFrameworks', 'resolvedSdk'] },
   { id: 'contexts', label: 'Contexts', priority: ['project', 'loadMode', 'reason', 'targetFramework', 'configuration'] },
@@ -30,8 +37,34 @@ const TABLES: { id: TableId; label: string; priority: string[] }[] = [
 
 const rowsFor = (data: GenerationData, id: TableId): Json[] => (id === 'files' ? (data.files as unknown as Json[]) : ((data[id] as unknown as Json[]) ?? []));
 
-function cell(v: unknown): string {
+/** The entity (or project) a side of a system link, a trace end or a package producer points to. */
+function sideTarget(v: unknown, model: GraphModel | null): string | undefined {
+  if (!model || !v) return undefined;
+  if (typeof v === 'string') return model.nodes.has(v) ? v : model.alias.get(v);
+  if (typeof v !== 'object') return undefined;
+  const s = v as Json;
+  if (typeof s.entity === 'string' && model.nodes.has(s.entity)) return s.entity;
+  const project = typeof s.project === 'string' ? model.projectByPath.get(projectKey(s.input, s.project)) : undefined;
+  return project?.id;
+}
+
+/** An observation without a symbol (a minimal API endpoint, say): its route, else its kind. */
+function observationText(o: Json, withInput = true): string {
+  const route = o.routeTemplate ?? o.canonicalRoute ?? o.route ?? o.contract ?? o.method;
+  const text = route ? `${o.method && o.method !== route ? `${String(o.method)} ` : ''}${String(route)}` : String(o.kind);
+  return withInput && typeof o.input === 'string' ? `[${o.input}] ${text}` : text;
+}
+
+/** `[leasing] Withdraw()`: a side of a system record, labelled with its input. */
+function sideText(v: Json, model: GraphModel | null): string {
+  const target = sideTarget(v, model);
+  const label = target ? model!.nodes.get(target)!.label : String(v.entity ?? v.project ?? v.observation ?? JSON.stringify(v));
+  return typeof v.input === 'string' ? `[${v.input}] ${label}` : label;
+}
+
+function cell(v: unknown, model: GraphModel | null = null): string {
   if (v === null || v === undefined) return '';
+  if (typeof v === 'object' && !Array.isArray(v) && typeof (v as Json).input === 'string') return sideText(v as Json, model);
   if (Array.isArray(v)) return v.map((x) => (typeof x === 'object' ? JSON.stringify(x) : String(x))).join(', ');
   if (typeof v === 'object') return JSON.stringify(v);
   return String(v);
@@ -41,7 +74,8 @@ export function Tables() {
   const st = useStore();
   const data = st.data!;
   const model = st.model;
-  const tab = (st.tableTab as TableId) || 'entities';
+  const tables = TABLES.filter((t) => !t.system || isSystem(data));
+  const tab = tables.find((t) => t.id === st.tableTab)?.id ?? 'entities';
   const def = TABLES.find((t) => t.id === tab)!;
   const rows = rowsFor(data, tab);
   const [kind, setKind] = useState('all');
@@ -74,14 +108,22 @@ export function Tables() {
         return tokens.every((t) => s.includes(t));
       });
     }
-    if (sort) out = [...out].sort((a, b) => cell(a[sort.col]).localeCompare(cell(b[sort.col]), 'en', { numeric: true }) * sort.dir);
+    if (sort) out = [...out].sort((a, b) => cell(a[sort.col], model).localeCompare(cell(b[sort.col], model), 'en', { numeric: true }) * sort.dir);
     return out;
-  }, [rows, kind, st.tableFilter, sort]);
+  }, [rows, kind, st.tableFilter, sort, model]);
 
+  const observations = useMemo(() => new Map(data.observations.map((o) => [o.id, o as Json])), [data]);
   const virt = useVirtualizer({ count: filtered.length, getScrollElement: () => parent.current, estimateSize: () => 32, overscan: 20 });
   const grid = { gridTemplateColumns: `repeat(${columns.length}, minmax(140px, 1fr))` };
 
-  const targetOf = (r: Json) => (tab === 'relations' ? r.from : tab === 'declarations' ? r.entity : r.id) as string | undefined;
+  const targetOf = (r: Json) =>
+    tab === 'links'
+      ? (sideTarget(r.from, model) ?? sideTarget(r.to, model))
+      : tab === 'traces'
+        ? sideTarget(r.start, model)
+        : tab === 'inputs'
+          ? repositoryId(String(r.id))
+          : ((tab === 'relations' ? r.from : tab === 'declarations' ? r.entity : r.id) as string | undefined);
   const reveal = (r: Json) => {
     const target = targetOf(r);
     if (target && model?.nodes.has(target)) st.reveal(target);
@@ -100,7 +142,7 @@ export function Tables() {
         }}
       >
         <TabsList className="h-auto flex-wrap justify-start">
-          {TABLES.map((t) => (
+          {tables.map((t) => (
             <TabsTrigger key={t.id} value={t.id} className="gap-1.5">
               {t.label}
               <span className="font-mono text-[10px] text-muted-foreground">{rowsFor(data, t.id).length.toLocaleString('en-US')}</span>
@@ -160,18 +202,21 @@ export function Tables() {
                 >
                   {columns.map((c) => {
                     const v = r[c];
-                    const node = (c === 'from' || c === 'to' || c === 'entity') && typeof v === 'string' ? model?.nodes.get(v) : undefined;
+                    const node = ['from', 'to', 'entity', 'start', 'end'].includes(c) && typeof v === 'string' ? model?.nodes.get(v) : undefined;
+                    const obs = !node && (c === 'start' || c === 'end') && typeof v === 'string' ? observations.get(v) : undefined;
+                    const text = c === 'segments' && Array.isArray(v) ? `${v.length} segments` : obs ? observationText(obs) : cell(v, model);
                     return (
-                      <div key={c} className="flex min-w-0 items-center gap-2 px-3" title={cell(v)}>
+                      <div key={c} className="flex min-w-0 items-center gap-2 px-3" title={text}>
                         {c === 'kind' && typeof v === 'string' && model?.entityKinds.has(v) && <KindGlyph kind={v} />}
                         {node ? (
                           <>
                             <KindGlyph kind={node.kind} />
+                            {node.input && <span className="shrink-0 font-mono text-2xs text-subtle-foreground">[{node.input}]</span>}
                             <span className="truncate">{node.label}</span>
                           </>
                         ) : (
                           <span className={`truncate ${['id', 'path', 'container', 'documentationId', 'context', 'blobId'].includes(c) ? 'font-mono text-2xs text-subtle-foreground' : ''}`}>
-                            {['id', 'container', 'documentationId'].includes(c) ? middleTruncate(cell(v), 40) : cell(v)}
+                            {['id', 'container', 'documentationId'].includes(c) ? middleTruncate(text, 40) : text}
                           </span>
                         )}
                       </div>
@@ -196,7 +241,9 @@ export function Tables() {
                   <Crosshair className="size-4" /> Show on map
                 </Button>
               )}
-              {picked && <Fields rec={picked} skip={['evidence']} />}
+              {picked && tab === 'links' && picked.scope === 'system' && model && <LinkDetails link={picked} model={model} />}
+              {picked && tab === 'traces' && model && <TraceSegments trace={picked} model={model} observations={observations} />}
+              {picked && <Fields rec={picked} skip={['evidence', ...(tab === 'traces' ? ['segments'] : [])]} />}
               {picked && Array.isArray(picked.evidence) && (
                 <section>
                   <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Evidence</h3>
@@ -208,5 +255,50 @@ export function Tables() {
         </SheetContent>
       </Sheet>
     </div>
+  );
+}
+
+/** The segments of a trace in order: inside one repository, or a link from one repository to another. */
+function TraceSegments({ trace, model, observations }: { trace: Json; model: GraphModel; observations: Map<string, Json> }) {
+  const segments = (Array.isArray(trace.segments) ? trace.segments : []) as Json[];
+  const label = (id: unknown, input: unknown) => {
+    const target = sideTarget(id, model);
+    const obs = typeof id === 'string' ? observations.get(id) : undefined;
+    const name = target ? model.nodes.get(target)!.label : obs ? observationText(obs, false) : String(id ?? '');
+    return typeof input === 'string' ? `[${input}] ${name}` : name;
+  };
+  return (
+    <section>
+      <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Segments</h3>
+      <p className="mb-2 text-sm">
+        {label(trace.start, segments[0]?.fromInput ?? segments[0]?.input)} <ArrowRight className="inline size-3.5 text-subtle-foreground" />{' '}
+        {label(trace.end, segments[segments.length - 1]?.toInput ?? segments[segments.length - 1]?.input)}
+      </p>
+      <ol className="space-y-1">
+        {segments.map((g, i) => (
+          <li key={i}>
+            <Collapsible>
+              <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <ChevronRight className="size-3.5 shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+                <span className="w-5 shrink-0 font-mono text-2xs text-subtle-foreground">{i + 1}</span>
+                <span className="min-w-0 flex-1 truncate">{g.type === 'link' ? `${label(g.from, g.fromInput)} → ${label(g.to, g.toInput)}` : label(g.to, g.input)}</span>
+                <Badge variant={g.type === 'link' ? 'default' : 'outline'} className="h-5 shrink-0 px-1.5 text-[10px] font-normal">
+                  {g.type === 'link' ? String(g.via ?? g.kind) : String(g.kind)}
+                </Badge>
+                {g.resolution !== 'exact' && (
+                  <Badge variant="outline" className="h-5 shrink-0 border-amber-500/40 px-1.5 text-[10px] font-normal text-amber-400">
+                    {String(g.resolution)}
+                  </Badge>
+                )}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="ml-6 mt-1 space-y-3 border-l pb-2 pl-3">
+                <Fields rec={g} skip={['evidence']} />
+                <EvidenceList ids={(g.evidence as string[] | undefined) ?? []} limit={5} />
+              </CollapsibleContent>
+            </Collapsible>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
